@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Microsoft.AspNet.Server.Kestrel.Infrastructure
 {
@@ -46,7 +47,8 @@ namespace Microsoft.AspNet.Server.Kestrel.Infrastructure
         /// Thread-safe collection of blocks which are currently in the pool. A slab will pre-allocate all of the block tracking objects
         /// and add them to this collection. When memory is requested it is taken from here first, and when it is returned it is re-added.
         /// </summary>
-        private readonly ConcurrentQueue<MemoryPoolBlock2> _blocks = new ConcurrentQueue<MemoryPoolBlock2>();
+        //private readonly ConcurrentQueue<MemoryPoolBlock2> _blocks = new ConcurrentQueue<MemoryPoolBlock2>();
+        private MemoryPoolBlock2 _headBlock = null;
 
         /// <summary>
         /// Thread-safe collection of slabs which have been allocated by this pool. As long as a slab is in this collection and slab.IsActive, 
@@ -80,14 +82,25 @@ namespace Microsoft.AspNet.Server.Kestrel.Infrastructure
                     slab: null);
             }
 
-            MemoryPoolBlock2 block;
-            if (_blocks.TryDequeue(out block))
+            while (true)
             {
-                // block successfully taken from the stack - return it
-                return block;
+                var headBlock = _headBlock;
+
+                if (headBlock == null)
+                {
+                    // no blocks available - grow the pool
+                    return AllocateSlab();
+                }
+
+                var nextBlock = headBlock.NextPooled;
+                var leasedBlock = Interlocked.CompareExchange(ref _headBlock, nextBlock, headBlock);
+
+                if (leasedBlock == headBlock)
+                {
+                    // block successfully taken from the stack - return it
+                    return leasedBlock;
+                }
             }
-            // no blocks available - grow the pool
-            return AllocateSlab();
         }
 
         /// <summary>
@@ -138,7 +151,20 @@ namespace Microsoft.AspNet.Server.Kestrel.Infrastructure
         public void Return(MemoryPoolBlock2 block)
         {
             block.Reset();
-            _blocks.Enqueue(block);
+
+            while (true)
+            {
+                var headBlock = _headBlock;
+                block.NextPooled = headBlock;
+
+                var oldHead = Interlocked.CompareExchange(ref _headBlock, block, headBlock);
+
+                if (oldHead == headBlock)
+                {
+                    // block successfully added to the stack
+                    return;
+                }
+            }
         }
 
         protected virtual void Dispose(bool disposing)

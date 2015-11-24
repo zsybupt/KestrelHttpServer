@@ -74,6 +74,8 @@ namespace Microsoft.AspNet.Server.Kestrel.Infrastructure
         /// </summary>
         public MemoryPoolBlock2 Next { get; set; }
 
+        public MemoryPoolBlock2 NextPooled { get; set; }
+
         ~MemoryPoolBlock2()
         {
             Debug.Assert(!_pinHandle.IsAllocated, "Ad-hoc memory block wasn't unpinned");
