@@ -12,7 +12,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
     /// </summary>
     public class TcpListener : Listener
     {
-        public TcpListener(ServiceContext serviceContext) : base(serviceContext)
+        public TcpListener(ServiceContext serviceContext, ServerAddress address, KestrelThread thread)
+            : base(serviceContext, address, thread)
         {
         }
 

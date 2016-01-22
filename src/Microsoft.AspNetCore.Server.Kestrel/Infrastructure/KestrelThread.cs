@@ -41,14 +41,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel
         private bool _initCompleted = false;
         private ExceptionDispatchInfo _closeError;
         private readonly IKestrelTrace _log;
-        private readonly IThreadPool _threadPool;
 
         public KestrelThread(KestrelEngine engine)
         {
             _engine = engine;
             _appLifetime = engine.AppLifetime;
             _log = engine.Log;
-            _threadPool = engine.ThreadPool;
             _loop = new UvLoopHandle(_log);
             _post = new UvAsyncHandle(_log);
             _thread = new Thread(ThreadStart);
@@ -283,16 +281,19 @@ namespace Microsoft.AspNetCore.Server.Kestrel
                 try
                 {
                     work.CallbackAdapter(work.Callback, work.State);
+
+                    // All Completion Tasks are waited on synchronously so it
+                    // is safe to complete them in the libuv loop.
                     if (work.Completion != null)
                     {
-                        _threadPool.Complete(work.Completion);
+                        work.Completion.TrySetResult(null);
                     }
                 }
                 catch (Exception ex)
                 {
                     if (work.Completion != null)
                     {
-                        _threadPool.Error(work.Completion, ex);
+                        work.Completion.TrySetException(ex);
                     }
                     else
                     {
