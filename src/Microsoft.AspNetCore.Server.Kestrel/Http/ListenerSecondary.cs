@@ -22,25 +22,23 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
         private Libuv.uv_buf_t _buf;
         private bool _closed;
 
-        protected ListenerSecondary(ServiceContext serviceContext) : base(serviceContext)
+        protected ListenerSecondary(ServiceContext serviceContext, ServerAddress address, KestrelThread thread, string pipeName)
+            : base(serviceContext)
         {
+            _pipeName = pipeName;
             _ptr = Marshal.AllocHGlobal(4);
+
+            ServerAddress = address;
+            Thread = thread;
         }
 
         UvPipeHandle DispatchPipe { get; set; }
 
-        public Task StartAsync(
-            string pipeName,
-            ServerAddress address,
-            KestrelThread thread)
+        public Task StartSecondaryAsync()
         {
-            _pipeName = pipeName;
-            _buf = thread.Loop.Libuv.buf_init(_ptr, 4);
+            _buf = Thread.Loop.Libuv.buf_init(_ptr, 4);
 
-            ServerAddress = address;
-            Thread = thread;
-            ConnectionManager = new ConnectionManager(thread);
-
+            ConnectionManager = new ConnectionManager(Thread);
             DispatchPipe = new UvPipeHandle(Log);
 
             var tcs = new TaskCompletionSource<int>(this);

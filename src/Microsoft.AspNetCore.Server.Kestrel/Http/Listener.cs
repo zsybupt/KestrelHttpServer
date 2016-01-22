@@ -15,20 +15,18 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
     {
         private bool _closed;
 
-        protected Listener(ServiceContext serviceContext) 
+        protected Listener(ServiceContext serviceContext, ServerAddress addreess, KestrelThread thread) 
             : base(serviceContext)
         {
+            ServerAddress = addreess;
+            Thread = thread;
         }
 
         protected UvStreamHandle ListenSocket { get; private set; }
 
-        public Task StartAsync(
-            ServerAddress address,
-            KestrelThread thread)
+        public Task StartAsync()
         {
-            ServerAddress = address;
-            Thread = thread;
-            ConnectionManager = new ConnectionManager(thread);
+            ConnectionManager = new ConnectionManager(Thread);
 
             var tcs = new TaskCompletionSource<int>(this);
 
