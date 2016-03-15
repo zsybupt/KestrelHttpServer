@@ -27,6 +27,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
                 var secondaryContext = new ListenerContext(serviceContext);
                 secondaryContext.Thread = threads[i];
                 secondaryContext.ServerAddress = address;
+                secondaryContext.ConnectionManager = new ConnectionManager(threads[i]);
                 _secondaryListeners[i - 1] = secondaryContext;
             }
         }
@@ -65,8 +66,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
 
             try
             {
-                acceptSocket.Init(secondaryContext.Thread.Loop);
-                acceptSocket.NoDelay(NoDelay);
+                acceptSocket.Init(secondaryContext.Thread.Loop, secondaryContext.Thread.QueueCloseHandle);
+                acceptSocket.NoDelay(ServerInformation.NoDelay);
                 ListenSocket.Accept(acceptSocket, crossThread: true);
             }
             catch (UvException ex)
@@ -78,9 +79,34 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
             connection.Start();
         }
 
-        public override void Dispose()
+        private static async Task DisposeSecondaryAsync(ListenerContext listener)
         {
-            base.Dispose();
+            await listener.Thread.PostAsync(state =>
+            {
+                var context = (ListenerContext)state;
+                context.ConnectionManager.WalkConnectionsAndClose();
+            }, listener).ConfigureAwait(false);
+
+            await listener.ConnectionManager.WaitForConnectionCloseAsync().ConfigureAwait(false);
+
+            await listener.Thread.PostAsync(state =>
+            {
+                var context = (ListenerContext)state;
+                var connectionManager = new ConnectionManager(context.Thread);
+
+                var writeReqPool = context.WriteReqPool;
+                while (writeReqPool.Count > 0)
+                {
+                    writeReqPool.Dequeue().Dispose();
+                }
+            }, listener).ConfigureAwait(false);
+
+            listener.Memory.Dispose();
+        }
+
+        public override async Task DisposeAsync()
+        {
+            await base.DisposeAsync().ConfigureAwait(false);
 
             var disposeTasks = new List<Task>();
 
@@ -92,21 +118,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
                 // the exception that stopped the event loop will never be surfaced.
                 if (listener.Thread.FatalError == null)
                 {
-                    var disposeTask = listener.Thread.PostAsync(state =>
-                    {
-                        var context = (ListenerContext)state;
-                        var writeReqPool = context.WriteReqPool;
-                        while (writeReqPool.Count > 0)
-                        {
-                            writeReqPool.Dequeue().Dispose();
-                        }
-                    }, listener);
-
-                    disposeTasks.Add(disposeTask);
+                    disposeTasks.Add(DisposeSecondaryAsync(listener));
                 }
             }
 
-            Task.WhenAll(disposeTasks).Wait();
+            await Task.WhenAll(disposeTasks).ConfigureAwait(false);
         }
     }
 }
