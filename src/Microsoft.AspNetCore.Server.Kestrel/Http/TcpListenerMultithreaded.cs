@@ -67,7 +67,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
             try
             {
                 acceptSocket.Init(secondaryContext.Thread.Loop, secondaryContext.Thread.QueueCloseHandle);
-                acceptSocket.NoDelay(ServerInformation.NoDelay);
+                acceptSocket.NoDelay(ServerOptions.NoDelay);
                 ListenSocket.Accept(acceptSocket, crossThread: true);
             }
             catch (UvException ex)
