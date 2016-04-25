@@ -672,13 +672,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
             var end = SocketOutput.ProducingStart();
             if (_keepAlive)
             {
-                foreach (var connectionValue in responseHeaders.HeaderConnection)
+                /*foreach (var connectionValue in responseHeaders.HeaderConnection)
                 {
                     if (connectionValue.IndexOf("close", StringComparison.OrdinalIgnoreCase) != -1)
                     {
                         _keepAlive = false;
                     }
-                }
+                }*/
             }
 
             if (_keepAlive && !responseHeaders.HasTransferEncoding && !responseHeaders.HasContentLength)
@@ -699,7 +699,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
                     if (_httpVersion == HttpVersionType.Http1_1)
                     {
                         _autoChunk = true;
-                        responseHeaders.SetRawTransferEncoding("chunked", _bytesTransferEncodingChunked);
+                        //responseHeaders.SetRawTransferEncoding("chunked", _bytesTransferEncodingChunked);
                     }
                     else
                     {
@@ -710,11 +710,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
 
             if (_keepAlive == false && responseHeaders.HasConnection == false && _httpVersion == HttpVersionType.Http1_1)
             {
-                responseHeaders.SetRawConnection("close", _bytesConnectionClose);
+                //responseHeaders.SetRawConnection("close", _bytesConnectionClose);
             }
             else if (_keepAlive && responseHeaders.HasConnection == false && _httpVersion == HttpVersionType.Http1_0)
             {
-                responseHeaders.SetRawConnection("keep-alive", _bytesConnectionKeepAlive);
+                //responseHeaders.SetRawConnection("keep-alive", _bytesConnectionKeepAlive);
             }
 
             end.CopyFrom(_httpVersion == HttpVersionType.Http1_1 ? _bytesHttpVersion1_1 : _bytesHttpVersion1_0);

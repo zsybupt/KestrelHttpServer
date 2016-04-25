@@ -77,57 +77,57 @@ namespace Microsoft.AspNetCore.Server.Kestrel.GeneratedCode
         {
             var commonHeaders = new[]
             {
-                "Cache-Control",
-                "Connection",
+                //"Cache-Control",
+                //"Connection",
                 "Date",
-                "Keep-Alive",
-                "Pragma",
-                "Trailer",
-                "Transfer-Encoding",
-                "Upgrade",
-                "Via",
-                "Warning",
-                "Allow",
+                //"Keep-Alive",
+                //"Pragma",
+                //"Trailer",
+                //"Transfer-Encoding",
+                //"Upgrade",
+                //"Via",
+                //"Warning",
+                //"Allow",
                 "Content-Length",
                 "Content-Type",
-                "Content-Encoding",
-                "Content-Language",
-                "Content-Location",
-                "Content-MD5",
-                "Content-Range",
-                "Expires",
-                "Last-Modified"
+                //"Content-Encoding",
+                //"Content-Language",
+                //"Content-Location",
+                //"Content-MD5",
+                //"Content-Range",
+                //"Expires",
+                //"Last-Modified"
             };
             // http://www.w3.org/TR/cors/#syntax
-            var corsRequestHeaders = new[]
+            var corsRequestHeaders = new string[]
             {
-                "Origin",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers",
+                //"Origin",
+                //"Access-Control-Request-Method",
+                //"Access-Control-Request-Headers",
             };
             var requestHeaders = commonHeaders.Concat(new[]
             {
-                "Accept",
-                "Accept-Charset",
-                "Accept-Encoding",
-                "Accept-Language",
-                "Authorization",
-                "Cookie",
-                "Expect",
-                "From",
+                //"Accept",
+                //"Accept-Charset",
+                //"Accept-Encoding",
+                //"Accept-Language",
+                //"Authorization",
+                //"Cookie",
+                //"Expect",
+                //"From",
                 "Host",
-                "If-Match",
-                "If-Modified-Since",
-                "If-None-Match",
-                "If-Range",
-                "If-Unmodified-Since",
-                "Max-Forwards",
-                "Proxy-Authorization",
-                "Referer",
-                "Range",
-                "TE",
-                "Translate",
-                "User-Agent",
+                //"If-Match",
+                //"If-Modified-Since",
+                //"If-None-Match",
+                //"If-Range",
+                //"If-Unmodified-Since",
+                //"Max-Forwards",
+                //"Proxy-Authorization",
+                //"Referer",
+                //"Range",
+                //"TE",
+                //"Translate",
+                //"User-Agent",
             }).Concat(corsRequestHeaders).Select((header, index) => new KnownHeader
             {
                 Name = header,
@@ -135,34 +135,34 @@ namespace Microsoft.AspNetCore.Server.Kestrel.GeneratedCode
             }).ToArray();
             var enhancedHeaders = new[]
             {
-                "Connection",
+                //"Connection",
                 "Server",
                 "Date",
-                "Transfer-Encoding",
+                //"Transfer-Encoding",
                 "Content-Length",
             };
             // http://www.w3.org/TR/cors/#syntax
-            var corsResponseHeaders = new[]
+            var corsResponseHeaders = new string[]
             {
-                "Access-Control-Allow-Credentials",
-                "Access-Control-Allow-Headers",
-                "Access-Control-Allow-Methods",
-                "Access-Control-Allow-Origin",
-                "Access-Control-Expose-Headers",
-                "Access-Control-Max-Age",
+                //"Access-Control-Allow-Credentials",
+                //"Access-Control-Allow-Headers",
+                //"Access-Control-Allow-Methods",
+                //"Access-Control-Allow-Origin",
+                //"Access-Control-Expose-Headers",
+                //"Access-Control-Max-Age",
             };
             var responseHeaders = commonHeaders.Concat(new[]
             {
-                "Accept-Ranges",
-                "Age",
-                "ETag",
-                "Location",
-                "Proxy-Autheticate",
-                "Retry-After",
+                //"Accept-Ranges",
+                //"Age",
+                //"ETag",
+                //"Location",
+                //"Proxy-Autheticate",
+                //"Retry-After",
                 "Server",
-                "Set-Cookie",
-                "Vary",
-                "WWW-Authenticate",
+                //"Set-Cookie",
+                //"Vary",
+                //"WWW-Authenticate",
             }).Concat(corsResponseHeaders).Select((header, index) => new KnownHeader
             {
                 Name = header,

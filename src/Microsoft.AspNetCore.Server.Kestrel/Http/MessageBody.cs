@@ -107,13 +107,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
 
             var keepAlive = httpVersion != "HTTP/1.0";
 
-            var connection = headers.HeaderConnection.ToString();
+            var connection = string.Empty;//headers.HeaderConnection.ToString();
             if (connection.Length > 0)
             {
                 keepAlive = connection.Equals("keep-alive", StringComparison.OrdinalIgnoreCase);
             }
 
-            var transferEncoding = headers.HeaderTransferEncoding.ToString();
+            var transferEncoding = string.Empty; //headers.HeaderTransferEncoding.ToString();
             if (transferEncoding.Length > 0)
             {
                 return new ForChunkedEncoding(keepAlive, headers, context);
