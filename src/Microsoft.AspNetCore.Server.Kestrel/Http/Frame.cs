@@ -64,9 +64,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
         protected bool _keepAlive;
         private bool _autoChunk;
         protected Exception _applicationException;
-        
-        private bool _headersInitialized;
-        private bool _streamsInitialized;
 
         private HttpVersionType _httpVersion;
 
@@ -179,39 +176,19 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
 
         public void InitializeHeaders()
         {
-            if(!_headersInitialized)
-            {
-                _frameHeaders = HttpComponentFactory.CreateHeaders(DateHeaderValueManager);
-                RequestHeaders = _frameHeaders.RequestHeaders;
-                ResponseHeaders = _frameHeaders.ResponseHeaders;
-                _headersInitialized = true;
-            }
-            else
-            {
-                _frameHeaders.Initialize(DateHeaderValueManager);
-            }
+            _frameHeaders = HttpComponentFactory.CreateHeaders(DateHeaderValueManager);
+            RequestHeaders = _frameHeaders.RequestHeaders;
+            ResponseHeaders = _frameHeaders.ResponseHeaders;
         }
 
 
         public void InitializeStreams(MessageBody messageBody)
         {
-            
-            if(!_streamsInitialized)
-            {
-                _frameStreams = HttpComponentFactory.CreateStreams(this);
+            _frameStreams = HttpComponentFactory.CreateStreams(this);
 
-                RequestBody = _frameStreams.RequestBody.StartAcceptingReads(messageBody);
-                ResponseBody = _frameStreams.ResponseBody.StartAcceptingWrites();
-                DuplexStream = _frameStreams.DuplexStream;
-                _streamsInitialized = true;
-            }
-            else
-            {
-                _frameStreams.Initialize(this);
-                RequestBody = _frameStreams.RequestBody.StartAcceptingReads(messageBody);
-                ResponseBody = _frameStreams.ResponseBody.StartAcceptingWrites();
-                DuplexStream = _frameStreams.DuplexStream;
-            }
+            RequestBody = _frameStreams.RequestBody.StartAcceptingReads(messageBody);
+            ResponseBody = _frameStreams.ResponseBody.StartAcceptingWrites();
+            DuplexStream = _frameStreams.DuplexStream;
         }
 
         public void PauseStreams()
@@ -273,14 +250,21 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Http
 
         protected void ResetComponents()
         {
-            if (_frameHeaders != null)
+            var frameHeaders = Interlocked.Exchange(ref _frameHeaders, null);
+            if (frameHeaders != null)
             {
-                _frameHeaders.Uninitialize();
+                RequestHeaders = null;
+                ResponseHeaders = null;
+                HttpComponentFactory.DisposeHeaders(frameHeaders);
             }
 
-            if (_frameStreams != null)
+            var frameStreams = Interlocked.Exchange(ref _frameStreams, null);
+            if (frameStreams != null)
             {
-                _frameStreams.Uninitialize();
+                RequestBody = null;
+                ResponseBody = null;
+                DuplexStream = null;
+                HttpComponentFactory.DisposeStreams(frameStreams);
             }
         }
 
