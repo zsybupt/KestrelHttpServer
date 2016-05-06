@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Primitives;
@@ -48,6 +49,15 @@ namespace Benchmark
             foreach (var header in _sampleHeaders)
             {
                 ValidateHeaderValues4(header);
+            }
+        }
+        
+        [Benchmark]
+        public void TestValidateHeaderValues5()
+        {
+            foreach (var header in _sampleHeaders)
+            {
+                ValidateHeaderValues5(header);
             }
         }
         
@@ -138,6 +148,67 @@ namespace Benchmark
                     {
                         return false;
                     }
+                }
+            }
+            
+            return true;
+        }
+        
+        static readonly Vector<ushort> _minValidHeaderChar = new Vector<ushort>(0x20);
+        static readonly int _vectorUShortSpan = Vector<ushort>.Count;
+        public static bool ValidateHeaderValues5(StringValues headerValues)
+        {
+            foreach (var headerCharacters in headerValues)
+            {
+                var remaining = headerCharacters.Length;
+                if (remaining < _vectorUShortSpan)
+                {
+                    foreach (var ch in headerCharacters)
+                    {
+                        if (ch < 0x20)
+                        {
+                            return false;
+                        }
+                    }
+                }
+                else
+                {
+                    if (!VectorValidateHeaderCharacters(headerCharacters, remaining))
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            return true;
+        }
+
+        private static unsafe bool VectorValidateHeaderCharacters(string headerCharacters, int remaining)
+        {
+            fixed (char* header = headerCharacters)
+            {
+                var offset = 0;
+                while (remaining - _vectorUShortSpan >= 0)
+                {
+                    remaining -= _vectorUShortSpan;
+                    var stringVector = Unsafe.Read<Vector<ushort>>(header + offset);
+                    if (Vector.LessThanAny(stringVector, _minValidHeaderChar))
+                    {
+                        return false;
+                    }
+
+                    offset += _vectorUShortSpan;
+                }
+                
+                while (remaining > 0)
+                {
+                    remaining--;
+                    if (*(header + offset) < 0x20)
+                    {
+                        return false;
+                    }
+
+                    offset++;
                 }
             }
             
