@@ -97,7 +97,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                     using (var form = new MultipartFormDataContent())
                     {
                         const int oneMegabyte = 1024 * 1024;
-                        const int files = 2048;
+                        const int files = 2048 - 1;
                         var bytes = new byte[oneMegabyte];
 
                         for (int i = 0; i < files; i++)
