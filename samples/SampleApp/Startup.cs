@@ -28,6 +28,7 @@ namespace SampleApp
                 //    + $"Sock: {connectionFeature.LocalIpAddress?.ToString()}:{connectionFeature.LocalPort}");
 
                 var response = $"hello, world{Environment.NewLine}";
+                context.Response.Headers["Connection"] = "close";
                 context.Response.ContentLength = response.Length;
                 context.Response.ContentType = "text/plain";
                 await context.Response.WriteAsync(response);
@@ -143,7 +144,7 @@ namespace SampleApp
                     //options.UseHttps("testCert.pfx", "testPassword");
                     //options.UseConnectionLogging();
                 })
-                .UseUrls("http://localhost:5000", "https://localhost:5001")
+                .UseUrls("http://[::1]:5000")
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseStartup<Startup>()
                 .Build();

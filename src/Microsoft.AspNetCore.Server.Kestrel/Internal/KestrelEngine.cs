@@ -3,8 +3,15 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Filter.Internal;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.Networking;
@@ -54,18 +61,60 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal
 #endif
         }
 
+        private class App : IHttpApplication<HttpContext>
+        {
+            public HttpContext CreateContext(IFeatureCollection contextFeatures)
+            {
+                return null;
+            }
+
+            public Task ProcessRequestAsync(HttpContext context)
+            {
+                return TaskUtilities.CompletedTask;
+            }
+
+            public void DisposeContext(HttpContext context, Exception exception)
+            {
+            }
+        }
+
+        private static readonly byte[] _requestBytes = Encoding.ASCII.GetBytes("GET / HTTP/1.0\r\n\r\n");
+
         public IDisposable CreateServer(ServerAddress address)
         {
-            ReasonPhrases.ToStatusBytes(200);
-            Frame<object>.Test = 2;
-            var conncontext = new ConnectionContext() { ServerAddress = address };
-            var frame = new Frame<object>(null, conncontext);
             var memory = new MemoryPool();
-            var block = memory.Lease();
-            var iter = new MemoryPoolIterator(block);
-            memory.Return(block);
+            var threadPool = new LoggingThreadPool(Log);
+
+            var socketInput = new SocketInput(memory, threadPool);
+            var memoryStream = new MemoryStream();
+            var socketOutput = new StreamSocketOutput("foo", memoryStream, memory, Log);
+            var produceBuffer = socketInput.IncomingStart();
+            Buffer.BlockCopy(_requestBytes, 0, produceBuffer.Array, produceBuffer.Start, _requestBytes.Length);
+            socketInput.IncomingComplete(_requestBytes.Length, null);
+            socketInput.IncomingComplete(0, null);
+
+            var context = new ConnectionContext
+            {
+                ServerAddress = address,
+                ServerOptions = new KestrelServerOptions(),
+                SocketInput = socketInput,
+                SocketOutput = socketOutput,
+                Log = Log,
+                DateHeaderValueManager = DateHeaderValueManager
+            };
+
+            var frame = new Frame<HttpContext>(new App(), context);
+            frame.Start();
+            Task.Delay(100).Wait();
+            frame.Stop().Wait();
+            socketInput.Dispose();
             memory.Dispose();
-            try { frame.TakeStartLine(null);} catch { }
+
+            memoryStream.Position = 0;
+            var streamReader = new StreamReader(memoryStream);
+            var response = streamReader.ReadToEnd();
+            Console.WriteLine(response);
+            memoryStream.Dispose();
 
             var listeners = new List<IAsyncDisposable>();
 
