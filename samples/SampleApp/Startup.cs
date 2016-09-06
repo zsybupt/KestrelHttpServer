@@ -82,7 +82,7 @@ namespace SampleApp
 
             Console.WriteLine("Third start time: {0}", sw.ElapsedMilliseconds);
 
-            Console.Read();
+            //Console.Read();
         }
 
         private static void Get(HttpClient client)
