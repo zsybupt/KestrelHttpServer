@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Numerics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,13 +32,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Http
         private static readonly byte[] _bytesEndHeaders = Encoding.ASCII.GetBytes("\r\n\r\n");
         private static readonly byte[] _bytesServer = Encoding.ASCII.GetBytes("\r\nServer: Kestrel");
 
-        private static Vector<byte> _vectorCRs = new Vector<byte>((byte)'\r');
-        private static Vector<byte> _vectorLFs = new Vector<byte>((byte)'\n');
-        private static Vector<byte> _vectorColons = new Vector<byte>((byte)':');
-        private static Vector<byte> _vectorSpaces = new Vector<byte>((byte)' ');
-        private static Vector<byte> _vectorTabs = new Vector<byte>((byte)'\t');
-        private static Vector<byte> _vectorQuestionMarks = new Vector<byte>((byte)'?');
-        private static Vector<byte> _vectorPercentages = new Vector<byte>((byte)'%');
+        private static byte _vectorCRs = (byte)'\r';
+        private static byte _vectorLFs = (byte)'\n';
+        private static byte _vectorColons = (byte)':';
+        private static byte _vectorSpaces = (byte)' ';
+        private static byte _vectorTabs = (byte)'\t';
+        private static byte _vectorQuestionMarks = (byte)'?';
+        private static byte _vectorPercentages = (byte)'%';
 
         private readonly object _onStartingSync = new Object();
         private readonly object _onCompletedSync = new Object();
@@ -789,7 +788,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Http
             SocketOutput.ProducingComplete(end);
         }
 
-        protected RequestLineStatus TakeStartLine(SocketInput input)
+        public RequestLineStatus TakeStartLine(SocketInput input)
         {
             var scan = input.ConsumingStart();
             var consumed = scan;
@@ -1267,7 +1266,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Http
             Log.ApplicationError(ConnectionId, ex);
         }
 
-        protected enum RequestLineStatus
+        public enum RequestLineStatus
         {
             Empty,
             MethodIncomplete,

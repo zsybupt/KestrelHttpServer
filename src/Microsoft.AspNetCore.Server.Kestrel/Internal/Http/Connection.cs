@@ -4,6 +4,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.Kestrel.Filter;
@@ -192,8 +193,19 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Http
             ((Connection)state).OnRead(handle, status);
         }
 
+        private static readonly byte[] _response = Encoding.ASCII.GetBytes(@"HTTP/1.1 200 OK
+Date: Thu, 01 Sep 2016 22:25:01 GMT
+Content-Length: 14
+Content-Type: text / plain
+Server: Kestrel
+
+hello, world
+");
+
         private void OnRead(UvStreamHandle handle, int status)
         {
+            //Console.WriteLine("OnRead({0})", status);
+
             if (status == 0)
             {
                 // A zero status does not indicate an error or connection end. It indicates
@@ -212,6 +224,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Http
             if (normalRead)
             {
                 Log.ConnectionRead(ConnectionId, readCount);
+                //Console.WriteLine("Writing response");
+                _frame.SocketOutput.Write(new ArraySegment<byte>(_response, 0, _response.Length));
+                //Console.WriteLine("Wrote response");
+                SocketInput.IncomingDeferred();
+                return;
             }
             else
             {

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.Networking;
 using Microsoft.Extensions.Logging;
 
@@ -55,6 +56,17 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal
 
         public IDisposable CreateServer(ServerAddress address)
         {
+            ReasonPhrases.ToStatusBytes(200);
+            Frame<object>.Test = 2;
+            var conncontext = new ConnectionContext() { ServerAddress = address };
+            var frame = new Frame<object>(null, conncontext);
+            var memory = new MemoryPool();
+            var block = memory.Lease();
+            var iter = new MemoryPoolIterator(block);
+            memory.Return(block);
+            memory.Dispose();
+            try { frame.TakeStartLine(null);} catch { }
+
             var listeners = new List<IAsyncDisposable>();
 
             var usingPipes = address.IsUnixPipe;

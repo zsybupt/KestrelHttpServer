@@ -3,15 +3,12 @@
 
 using System;
 using System.Diagnostics;
-using System.Numerics;
 using System.Threading;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
 {
     public struct MemoryPoolIterator
     {
-        private static readonly int _vectorSpan = Vector<byte>.Count;
-
         private MemoryPoolBlock _block;
         private int _index;
 
@@ -215,14 +212,14 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
             }
         }
 
-        public int Seek(ref Vector<byte> byte0Vector)
+        public int Seek(ref byte byte0Vector)
         {
             int bytesScanned;
             return Seek(ref byte0Vector, out bytesScanned);
         }
 
         public unsafe int Seek(
-            ref Vector<byte> byte0Vector,
+            ref byte byte0Vector,
             out int bytesScanned,
             int limit = int.MaxValue)
         {
@@ -238,7 +235,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
             var wasLastBlock = block.Next == null;
             var following = block.End - index;
             byte[] array;
-            var byte0 = byte0Vector[0];
+            var byte0 = byte0Vector;
 
             while (true)
             {
@@ -260,54 +257,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
                 while (following > 0)
                 {
                     // Need unit tests to test Vector path
-#if !DEBUG
-                    // Check will be Jitted away https://github.com/dotnet/coreclr/issues/1079
-                    if (Vector.IsHardwareAccelerated)
-                    {
-#endif
-                    if (following >= _vectorSpan)
-                    {
-                        var byte0Equals = Vector.Equals(new Vector<byte>(array, index), byte0Vector);
-
-                        if (byte0Equals.Equals(Vector<byte>.Zero))
-                        {
-                            if (bytesScanned + _vectorSpan >= limit)
-                            {
-                                _block = block;
-                                // Ensure iterator is left at limit position
-                                _index = index + (limit - bytesScanned);
-                                bytesScanned = limit;
-                                return -1;
-                            }
-
-                            bytesScanned += _vectorSpan;
-                            following -= _vectorSpan;
-                            index += _vectorSpan;
-                            continue;
-                        }
-
-                        _block = block;
-
-                        var firstEqualByteIndex = FindFirstEqualByte(ref byte0Equals);
-                        var vectorBytesScanned = firstEqualByteIndex + 1;
-
-                        if (bytesScanned + vectorBytesScanned > limit)
-                        {
-                            // Ensure iterator is left at limit position
-                            _index = index + (limit - bytesScanned);
-                            bytesScanned = limit;
-                            return -1;
-                        }
-
-                        _index = index + firstEqualByteIndex;
-                        bytesScanned += vectorBytesScanned;
-
-                        return byte0;
-                    }
-                    // Need unit tests to test Vector path
-#if !DEBUG
-                    }
-#endif
 
                     var pCurrent = (block.DataFixedPtr + index);
                     var pEnd = pCurrent + Math.Min(following, limit - bytesScanned);
@@ -331,7 +280,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
         }
 
         public unsafe int Seek(
-            ref Vector<byte> byte0Vector,
+            ref byte byte0Vector,
             ref MemoryPoolIterator limit)
         {
             if (IsDefault)
@@ -344,7 +293,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
             var wasLastBlock = block.Next == null;
             var following = block.End - index;
             byte[] array;
-            var byte0 = byte0Vector[0];
+            var byte0 = byte0Vector;
 
             while (true)
             {
@@ -368,50 +317,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
                 while (following > 0)
                 {
 // Need unit tests to test Vector path
-#if !DEBUG
-                    // Check will be Jitted away https://github.com/dotnet/coreclr/issues/1079
-                    if (Vector.IsHardwareAccelerated)
-                    {
-#endif
-                        if (following >= _vectorSpan)
-                        {
-                            var byte0Equals = Vector.Equals(new Vector<byte>(array, index), byte0Vector);
-
-                            if (byte0Equals.Equals(Vector<byte>.Zero))
-                            {
-                                if (block == limit.Block && index + _vectorSpan > limit.Index)
-                                {
-                                    _block = block;
-                                    // Ensure iterator is left at limit position
-                                    _index = limit.Index;
-                                    return -1;
-                                }
-
-                                following -= _vectorSpan;
-                                index += _vectorSpan;
-                                continue;
-                            }
-
-                            _block = block;
-
-                            var firstEqualByteIndex = FindFirstEqualByte(ref byte0Equals);
-                            var vectorBytesScanned = firstEqualByteIndex + 1;
-
-                            if (_block == limit.Block && index + firstEqualByteIndex > limit.Index)
-                            {
-                                // Ensure iterator is left at limit position
-                                _index = limit.Index;
-                                return -1;
-                            }
-
-                            _index = index + firstEqualByteIndex;
-
-                            return byte0;
-                        }
-// Need unit tests to test Vector path
-#if !DEBUG
-                    }
-#endif
 
                     var pCurrent = (block.DataFixedPtr + index);
                     var pEnd = block == limit.Block ? block.DataFixedPtr + limit.Index + 1 : pCurrent + following;
@@ -433,15 +338,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
             }
         }
 
-        public int Seek(ref Vector<byte> byte0Vector, ref Vector<byte> byte1Vector)
+        public int Seek(ref byte byte0Vector, byte byte1Vector)
         {
             var limit = new MemoryPoolIterator();
             return Seek(ref byte0Vector, ref byte1Vector, ref limit);
         }
 
         public unsafe int Seek(
-            ref Vector<byte> byte0Vector,
-            ref Vector<byte> byte1Vector,
+            ref byte byte0Vector,
+            ref byte byte1Vector,
             ref MemoryPoolIterator limit)
         {
             if (IsDefault)
@@ -456,8 +361,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
             byte[] array;
             int byte0Index = int.MaxValue;
             int byte1Index = int.MaxValue;
-            var byte0 = byte0Vector[0];
-            var byte1 = byte1Vector[0];
+            var byte0 = byte0Vector;
+            var byte1 = byte1Vector;
 
             while (true)
             {
@@ -481,73 +386,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
                 {
 
 // Need unit tests to test Vector path
-#if !DEBUG
-                    // Check will be Jitted away https://github.com/dotnet/coreclr/issues/1079
-                    if (Vector.IsHardwareAccelerated)
-                    {
-#endif
-                        if (following >= _vectorSpan)
-                        {
-                            var data = new Vector<byte>(array, index);
-                            var byte0Equals = Vector.Equals(data, byte0Vector);
-                            var byte1Equals = Vector.Equals(data, byte1Vector);
 
-                            if (!byte0Equals.Equals(Vector<byte>.Zero))
-                            {
-                                byte0Index = FindFirstEqualByte(ref byte0Equals);
-                            }
-                            if (!byte1Equals.Equals(Vector<byte>.Zero))
-                            {
-                                byte1Index = FindFirstEqualByte(ref byte1Equals);
-                            }
-
-                            if (byte0Index == int.MaxValue && byte1Index == int.MaxValue)
-                            {
-                                following -= _vectorSpan;
-                                index += _vectorSpan;
-
-                                if (block == limit.Block && index > limit.Index)
-                                {
-                                    _block = block;
-                                    // Ensure iterator is left at limit position
-                                    _index = limit.Index;
-                                    return -1;
-                                }
-
-                                continue;
-                            }
-
-                            _block = block;
-
-                            if (byte0Index < byte1Index)
-                            {
-                                _index = index + byte0Index;
-
-                                if (block == limit.Block && _index > limit.Index)
-                                {
-                                    // Ensure iterator is left at limit position
-                                    _index = limit.Index;
-                                    return -1;
-                                }
-
-                                return byte0;
-                            }
-
-                            _index = index + byte1Index;
-
-                            if (block == limit.Block && _index > limit.Index)
-                            {
-                                // Ensure iterator is left at limit position
-                                _index = limit.Index;
-                                return -1;
-                            }
-
-                            return byte1;
-                        }
-// Need unit tests to test Vector path
-#if !DEBUG
-                    }
-#endif
                     var pCurrent = (block.DataFixedPtr + index);
                     var pEnd = block == limit.Block ? block.DataFixedPtr + limit.Index + 1 : pCurrent + following;
                     do
@@ -574,16 +413,16 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
             }
         }
 
-        public int Seek(ref Vector<byte> byte0Vector, ref Vector<byte> byte1Vector, ref Vector<byte> byte2Vector)
+        public int Seek(ref byte byte0Vector, ref byte byte1Vector, ref byte byte2Vector)
         {
             var limit = new MemoryPoolIterator();
             return Seek(ref byte0Vector, ref byte1Vector, ref byte2Vector, ref limit);
         }
 
         public unsafe int Seek(
-            ref Vector<byte> byte0Vector,
-            ref Vector<byte> byte1Vector,
-            ref Vector<byte> byte2Vector,
+            ref byte byte0Vector,
+            ref byte byte1Vector,
+            ref byte byte2Vector,
             ref MemoryPoolIterator limit)
         {
             if (IsDefault)
@@ -599,9 +438,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
             int byte0Index = int.MaxValue;
             int byte1Index = int.MaxValue;
             int byte2Index = int.MaxValue;
-            var byte0 = byte0Vector[0];
-            var byte1 = byte1Vector[0];
-            var byte2 = byte2Vector[0];
+            var byte0 = byte0Vector;
+            var byte1 = byte1Vector;
+            var byte2 = byte2Vector;
 
             while (true)
             {
@@ -624,92 +463,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
                 while (following > 0)
                 {
 // Need unit tests to test Vector path
-#if !DEBUG
-                    // Check will be Jitted away https://github.com/dotnet/coreclr/issues/1079
-                    if (Vector.IsHardwareAccelerated)
-                    {
-#endif
-                        if (following >= _vectorSpan)
-                        {
-                            var data = new Vector<byte>(array, index);
-                            var byte0Equals = Vector.Equals(data, byte0Vector);
-                            var byte1Equals = Vector.Equals(data, byte1Vector);
-                            var byte2Equals = Vector.Equals(data, byte2Vector);
 
-                            if (!byte0Equals.Equals(Vector<byte>.Zero))
-                            {
-                                byte0Index = FindFirstEqualByte(ref byte0Equals);
-                            }
-                            if (!byte1Equals.Equals(Vector<byte>.Zero))
-                            {
-                                byte1Index = FindFirstEqualByte(ref byte1Equals);
-                            }
-                            if (!byte2Equals.Equals(Vector<byte>.Zero))
-                            {
-                                byte2Index = FindFirstEqualByte(ref byte2Equals);
-                            }
-
-                            if (byte0Index == int.MaxValue && byte1Index == int.MaxValue && byte2Index == int.MaxValue)
-                            {
-                                following -= _vectorSpan;
-                                index += _vectorSpan;
-
-                                if (block == limit.Block && index > limit.Index)
-                                {
-                                    _block = block;
-                                    // Ensure iterator is left at limit position
-                                    _index = limit.Index;
-                                    return -1;
-                                }
-
-                                continue;
-                            }
-
-                            _block = block;
-
-                            int toReturn, toMove;
-                            if (byte0Index < byte1Index)
-                            {
-                                if (byte0Index < byte2Index)
-                                {
-                                    toReturn = byte0;
-                                    toMove = byte0Index;
-                                }
-                                else
-                                {
-                                    toReturn = byte2;
-                                    toMove = byte2Index;
-                                }
-                            }
-                            else
-                            {
-                                if (byte1Index < byte2Index)
-                                {
-                                    toReturn = byte1;
-                                    toMove = byte1Index;
-                                }
-                                else
-                                {
-                                    toReturn = byte2;
-                                    toMove = byte2Index;
-                                }
-                            }
-
-                            _index = index + toMove;
-
-                            if (block == limit.Block && _index > limit.Index)
-                            {
-                                // Ensure iterator is left at limit position
-                                _index = limit.Index;
-                                return -1;
-                            }
-
-                            return toReturn;
-                        }
-// Need unit tests to test Vector path
-#if !DEBUG
-                    }
-#endif
                     var pCurrent = (block.DataFixedPtr + index);
                     var pEnd = block == limit.Block ? block.DataFixedPtr + limit.Index + 1 : pCurrent + following;
                     do
@@ -740,63 +494,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure
                     break;
                 }
             }
-        }
-
-        /// <summary>
-        /// Find first byte
-        /// </summary>
-        /// <param  name="byteEquals"></param >
-        /// <returns>The first index of the result vector</returns>
-        /// <exception cref="InvalidOperationException">byteEquals = 0</exception>
-        internal static int FindFirstEqualByte(ref Vector<byte> byteEquals)
-        {
-            if (!BitConverter.IsLittleEndian) return FindFirstEqualByteSlow(ref byteEquals);
-
-            // Quasi-tree search
-            var vector64 = Vector.AsVectorInt64(byteEquals);
-            for (var i = 0; i < Vector<long>.Count; i++)
-            {
-                var longValue = vector64[i];
-                if (longValue == 0) continue;
-
-                return (i << 3) +
-                    ((longValue & 0x00000000ffffffff) > 0
-                        ? (longValue & 0x000000000000ffff) > 0
-                            ? (longValue & 0x00000000000000ff) > 0 ? 0 : 1
-                            : (longValue & 0x0000000000ff0000) > 0 ? 2 : 3
-                        : (longValue & 0x0000ffff00000000) > 0
-                            ? (longValue & 0x000000ff00000000) > 0 ? 4 : 5
-                            : (longValue & 0x00ff000000000000) > 0 ? 6 : 7);
-            }
-            throw new InvalidOperationException();
-        }
-
-        // Internal for testing
-        internal static int FindFirstEqualByteSlow(ref Vector<byte> byteEquals)
-        {
-            // Quasi-tree search
-            var vector64 = Vector.AsVectorInt64(byteEquals);
-            for (var i = 0; i < Vector<long>.Count; i++)
-            {
-                var longValue = vector64[i];
-                if (longValue == 0) continue;
-
-                var shift = i << 1;
-                var offset = shift << 2;
-                var vector32 = Vector.AsVectorInt32(byteEquals);
-                if (vector32[shift] != 0)
-                {
-                    if (byteEquals[offset] != 0) return offset;
-                    if (byteEquals[offset + 1] != 0) return offset + 1;
-                    if (byteEquals[offset + 2] != 0) return offset + 2;
-                    return offset + 3;
-                }
-                if (byteEquals[offset + 4] != 0) return offset + 4;
-                if (byteEquals[offset + 5] != 0) return offset + 5;
-                if (byteEquals[offset + 6] != 0) return offset + 6;
-                return offset + 7;
-            }
-            throw new InvalidOperationException();
         }
 
         /// <summary>

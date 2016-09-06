@@ -11,6 +11,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Http
 {
     public class Frame<TContext> : Frame
     {
+        public static int Test = 0;
+
         private readonly IHttpApplication<TContext> _application;
 
         public Frame(IHttpApplication<TContext> application,

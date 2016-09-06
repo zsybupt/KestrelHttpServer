@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.Infrastructure;
@@ -214,7 +213,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.Http
         {
             // This causes an InvalidProgramException if made static
             // https://github.com/dotnet/corefx/issues/8825
-            private Vector<byte> _vectorCRs = new Vector<byte>((byte)'\r');
+            private byte _vectorCRs = (byte)'\r';
 
             private int _inputLength;
             private Mode _mode = Mode.Prefix;
