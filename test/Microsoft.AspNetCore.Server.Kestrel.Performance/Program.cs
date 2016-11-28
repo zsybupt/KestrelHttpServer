@@ -36,6 +36,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
             {
                 BenchmarkRunner.Run<RequestParsing>();
             }
+
+            if (type.HasFlag(BenchmarkType.StringValuesEnumerating))
+            {
+                BenchmarkRunner.Run<StringValuesEnumerating>();
+            }
         }
     }
 
@@ -43,7 +48,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
     public enum BenchmarkType : uint
     {
         RequestParsing = 1,
-        // add new ones in powers of two - e.g. 2,4,8,16...
+        StringValuesEnumerating = 2,
+        // add new ones in powers of two - e.g. 4,8,16...
 
         All = uint.MaxValue
     }
