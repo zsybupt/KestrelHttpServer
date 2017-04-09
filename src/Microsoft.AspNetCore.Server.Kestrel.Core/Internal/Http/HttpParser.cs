@@ -27,7 +27,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         private const byte ByteQuestionMark = (byte)'?';
         private const byte BytePercentage = (byte)'%';
 
-        public unsafe bool ParseRequestLine(IHttpRequestLineHandler handler, ReadableBuffer buffer, out ReadCursor consumed, out ReadCursor examined)
+        public bool ParseRequestLine(IHttpRequestLineHandler handler, ReadableBuffer buffer, out ReadCursor consumed, out ReadCursor examined)
         {
             consumed = buffer.Start;
             examined = buffer.End;
@@ -56,25 +56,21 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 return false;
             }
 
-            // Fix and parse the span
-            fixed (byte* data = &span.DangerousGetPinnableReference())
-            {
-                ParseRequestLine(handler, data, span.Length);
-            }
+            // Parse the span
+            ParseRequestLine(handler, span);
 
             examined = consumed;
             return true;
         }
 
-        private unsafe void ParseRequestLine(IHttpRequestLineHandler handler, byte* data, int length)
+        private void ParseRequestLine(IHttpRequestLineHandler handler, Span<byte> data)
         {
-            int offset;
-            Span<byte> customMethod = default(Span<byte>);
+            var customMethod = default(Span<byte>);
             // Get Method and set the offset
-            var method = HttpUtilities.GetKnownMethod(data, length, out offset);
+            var method = HttpUtilities.GetKnownMethod(data, out var offset);
             if (method == HttpMethod.Custom)
             {
-                customMethod = GetUnknownMethod(data, length, out offset);
+                customMethod = GetUnknownMethod(data, out offset);
             }
 
             // Skip space
@@ -84,7 +80,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             // Target = Path and Query
             var pathEncoded = false;
             var pathStart = -1;
-            for (; offset < length; offset++)
+            for (; offset < data.Length; offset++)
             {
                 ch = data[offset];
                 if (ch == ByteSpace)
@@ -92,7 +88,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                     if (pathStart == -1)
                     {
                         // Empty path is illegal
-                        RejectRequestLine(data, length);
+                        RejectRequestLine(data);
                     }
 
                     break;
@@ -102,7 +98,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                     if (pathStart == -1)
                     {
                         // Empty path is illegal
-                        RejectRequestLine(data, length);
+                        RejectRequestLine(data);
                     }
 
                     break;
@@ -112,7 +108,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                     if (pathStart == -1)
                     {
                         // Path starting with % is illegal
-                        RejectRequestLine(data, length);
+                        RejectRequestLine(data);
                     }
 
                     pathEncoded = true;
@@ -126,17 +122,17 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             if (pathStart == -1)
             {
                 // Start of path not found
-                RejectRequestLine(data, length);
+                RejectRequestLine(data);
             }
 
-            var pathBuffer = new Span<byte>(data + pathStart, offset - pathStart);
+            var pathBuffer = data.Slice(pathStart, offset - pathStart);
 
             // Query string
             var queryStart = offset;
             if (ch == ByteQuestionMark)
             {
                 // We have a query string
-                for (; offset < length; offset++)
+                for (; offset < data.Length; offset++)
                 {
                     ch = data[offset];
                     if (ch == ByteSpace)
@@ -147,43 +143,43 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             }
 
             // End of query string not found
-            if (offset == length)
+            if (offset == data.Length)
             {
-                RejectRequestLine(data, length);
+                RejectRequestLine(data);
             }
 
-            var targetBuffer = new Span<byte>(data + pathStart, offset - pathStart);
-            var query = new Span<byte>(data + queryStart, offset - queryStart);
+            var targetBuffer = data.Slice(pathStart, offset - pathStart);
+            var query = data.Slice(queryStart, offset - queryStart);
 
             // Consume space
             offset++;
 
             // Version
-            var httpVersion = HttpUtilities.GetKnownVersion(data + offset, length - offset);
+            var httpVersion = HttpUtilities.GetKnownVersion(data.Slice(offset));
             if (httpVersion == HttpVersion.Unknown)
             {
-                if (data[offset] == ByteCR || data[length - 2] != ByteCR)
+                if (data[offset] == ByteCR || data[data.Length - 2] != ByteCR)
                 {
                     // If missing delimiter or CR before LF, reject and log entire line
-                    RejectRequestLine(data, length);
+                    RejectRequestLine(data);
                 }
                 else
                 {
                     // else inform HTTP version is unsupported.
-                    RejectUnknownVersion(data + offset, length - offset - 2);
+                    RejectUnknownVersion(data.Slice(offset, data.Length - offset - 2));
                 }
             }
 
             // After version's 8 bytes and CR, expect LF
             if (data[offset + 8 + 1] != ByteLF)
             {
-                RejectRequestLine(data, length);
+                RejectRequestLine(data);
             }
 
             handler.OnStartLine(method, httpVersion, targetBuffer, pathBuffer, query, customMethod, pathEncoded);
         }
 
-        public unsafe bool ParseHeaders(IHttpHeadersHandler handler, ReadableBuffer buffer, out ReadCursor consumed, out ReadCursor examined, out int consumedBytes)
+        public bool ParseHeaders(IHttpHeadersHandler handler, ReadableBuffer buffer, out ReadCursor consumed, out ReadCursor examined, out int consumedBytes)
         {
             consumed = buffer.Start;
             examined = buffer.End;
@@ -202,106 +198,99 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                     var span = reader.Span;
                     var remaining = span.Length - reader.Index;
 
-                    fixed (byte* pBuffer = &span.DangerousGetPinnableReference())
+                    while (remaining > 0)
                     {
-                        while (remaining > 0)
+                        var index = reader.Index;
+                        int ch1;
+                        int ch2;
+
+                        // Fast path, we're still looking at the same span
+                        if (remaining >= 2)
                         {
-                            var index = reader.Index;
-                            int ch1;
-                            int ch2;
-
-                            // Fast path, we're still looking at the same span
-                            if (remaining >= 2)
-                            {
-                                ch1 = pBuffer[index];
-                                ch2 = pBuffer[index + 1];
-                            }
-                            else
-                            {
-                                // Store the reader before we look ahead 2 bytes (probably straddling
-                                // spans)
-                                start = reader;
-
-                                // Possibly split across spans
-                                ch1 = reader.Take();
-                                ch2 = reader.Take();
-                            }
-
-                            if (ch1 == ByteCR)
-                            {
-                                // Check for final CRLF.
-                                if (ch2 == -1)
-                                {
-                                    // Reset the reader so we don't consume anything
-                                    reader = start;
-                                    return false;
-                                }
-                                else if (ch2 == ByteLF)
-                                {
-                                    // If we got 2 bytes from the span directly so skip ahead 2 so that
-                                    // the reader's state matches what we expect
-                                    if (index == reader.Index)
-                                    {
-                                        reader.Skip(2);
-                                    }
-
-                                    done = true;
-                                    return true;
-                                }
-
-                                // Headers don't end in CRLF line.
-                                RejectRequest(RequestRejectionReason.InvalidRequestHeadersNoCRLF);
-                            }
-
-                            // We moved the reader so look ahead 2 bytes so reset both the reader
-                            // and the index
-                            if (index != reader.Index)
-                            {
-                                reader = start;
-                                index = reader.Index;
-                            }
-
-                            var endIndex = new Span<byte>(pBuffer + index, remaining).IndexOf(ByteLF);
-                            var length = 0;
-
-                            if (endIndex != -1)
-                            {
-                                length = endIndex + 1;
-                                var pHeader = pBuffer + index;
-
-                                TakeSingleHeader(pHeader, length, handler);
-                            }
-                            else
-                            {
-                                var current = reader.Cursor;
-
-                                // Split buffers
-                                if (ReadCursorOperations.Seek(current, bufferEnd, out var lineEnd, ByteLF) == -1)
-                                {
-                                    // Not there
-                                    return false;
-                                }
-
-                                // Make sure LF is included in lineEnd
-                                lineEnd = buffer.Move(lineEnd, 1);
-                                var headerSpan = buffer.Slice(current, lineEnd).ToSpan();
-                                length = headerSpan.Length;
-
-                                fixed (byte* pHeader = &headerSpan.DangerousGetPinnableReference())
-                                {
-                                    TakeSingleHeader(pHeader, length, handler);
-                                }
-
-                                // We're going to the next span after this since we know we crossed spans here
-                                // so mark the remaining as equal to the headerSpan so that we end up at 0
-                                // on the next iteration
-                                remaining = length;
-                            }
-
-                            // Skip the reader forward past the header line
-                            reader.Skip(length);
-                            remaining -= length;
+                            ch1 = span[index];
+                            ch2 = span[index + 1];
                         }
+                        else
+                        {
+                            // Store the reader before we look ahead 2 bytes (probably straddling
+                            // spans)
+                            start = reader;
+
+                            // Possibly split across spans
+                            ch1 = reader.Take();
+                            ch2 = reader.Take();
+                        }
+
+                        if (ch1 == ByteCR)
+                        {
+                            // Check for final CRLF.
+                            if (ch2 == -1)
+                            {
+                                // Reset the reader so we don't consume anything
+                                reader = start;
+                                return false;
+                            }
+                            else if (ch2 == ByteLF)
+                            {
+                                // If we got 2 bytes from the span directly so skip ahead 2 so that
+                                // the reader's state matches what we expect
+                                if (index == reader.Index)
+                                {
+                                    reader.Skip(2);
+                                }
+
+                                done = true;
+                                return true;
+                            }
+
+                            // Headers don't end in CRLF line.
+                            RejectRequest(RequestRejectionReason.InvalidRequestHeadersNoCRLF);
+                        }
+
+                        // We moved the reader so look ahead 2 bytes so reset both the reader
+                        // and the index
+                        if (index != reader.Index)
+                        {
+                            reader = start;
+                            index = reader.Index;
+                        }
+
+                        var endIndex = span.Slice(index, remaining).IndexOf(ByteLF);
+                        var length = 0;
+
+                        if (endIndex != -1)
+                        {
+                            length = endIndex + 1;
+
+                            TakeSingleHeader(span.Slice(index, length), handler);
+                        }
+                        else
+                        {
+                            var current = reader.Cursor;
+
+                            // Split buffers
+                            if (ReadCursorOperations.Seek(current, bufferEnd, out var lineEnd, ByteLF) == -1)
+                            {
+                                // Not there
+                                return false;
+                            }
+
+                            // Make sure LF is included in lineEnd
+                            lineEnd = buffer.Move(lineEnd, 1);
+                            var headerSpan = buffer.Slice(current, lineEnd).ToSpan();
+                            length = headerSpan.Length;
+
+                            TakeSingleHeader(headerSpan, handler);
+
+                            // We're going to the next span after this since we know we crossed spans here
+                            // so mark the remaining as equal to the headerSpan so that we end up at 0
+                            // on the next iteration
+                            remaining = length;
+                        }
+
+                        // Skip the reader forward past the header line
+                        reader.Skip(length);
+                        remaining -= length;
                     }
                 }
 
@@ -320,11 +309,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe int FindEndOfName(byte* headerLine, int length)
+        private int FindEndOfName(Span<byte> headerLine)
         {
             var index = 0;
             var sawWhitespace = false;
-            for (; index < length; index++)
+            for (; index < headerLine.Length; index++)
             {
                 var ch = headerLine[index];
                 if (ch == ByteColon)
@@ -337,28 +326,28 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 }
             }
 
-            if (index == length || sawWhitespace)
+            if (index == headerLine.Length || sawWhitespace)
             {
-                RejectRequestHeader(headerLine, length);
+                RejectRequestHeader(headerLine);
             }
 
             return index;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void TakeSingleHeader(byte* headerLine, int length, IHttpHeadersHandler handler)
+        private void TakeSingleHeader(Span<byte> headerLine, IHttpHeadersHandler handler)
         {
             // Skip CR, LF from end position
-            var valueEnd = length - 3;
-            var nameEnd = FindEndOfName(headerLine, length);
+            var valueEnd = headerLine.Length - 3;
+            var nameEnd = FindEndOfName(headerLine);
 
             if (headerLine[valueEnd + 2] != ByteLF)
             {
-                RejectRequestHeader(headerLine, length);
+                RejectRequestHeader(headerLine);
             }
             if (headerLine[valueEnd + 1] != ByteCR)
             {
-                RejectRequestHeader(headerLine, length);
+                RejectRequestHeader(headerLine);
             }
 
             // Skip colon from value start
@@ -373,15 +362,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 }
                 else if (ch == ByteCR)
                 {
-                    RejectRequestHeader(headerLine, length);
+                    RejectRequestHeader(headerLine);
                 }
             }
 
             // Check for CR in value
-            var valueBuffer = new Span<byte>(headerLine + valueStart, valueEnd - valueStart + 1);
+            var valueBuffer = headerLine.Slice(valueStart, valueEnd - valueStart + 1);
             if (valueBuffer.IndexOf(ByteCR) >= 0)
             {
-                RejectRequestHeader(headerLine, length);
+                RejectRequestHeader(headerLine);
             }
 
             // Ignore end whitespace
@@ -400,10 +389,10 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             if (lengthChanged)
             {
                 // Length changed
-                valueBuffer = new Span<byte>(headerLine + valueStart, valueEnd - valueStart + 1);
+                valueBuffer = headerLine.Slice(valueStart, valueEnd - valueStart + 1)
             }
 
-            var nameBuffer = new Span<byte>(headerLine, nameEnd);
+            var nameBuffer = headerLine.Slice(0, nameEnd);
 
             handler.OnHeader(nameBuffer, valueBuffer);
         }
@@ -422,10 +411,10 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private unsafe Span<byte> GetUnknownMethod(byte* data, int length, out int methodLength)
+        private Span<byte> GetUnknownMethod(Span<byte> data, out int methodLength)
         {
             methodLength = 0;
-            for (var i = 0; i < length; i++)
+            for (var i = 0; i < data.Length; i++)
             {
                 var ch = data[i];
 
@@ -433,7 +422,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 {
                     if (i == 0)
                     {
-                        RejectRequestLine(data, length);
+                        RejectRequestLine(data);
                     }
 
                     methodLength = i;
@@ -441,11 +430,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 }
                 else if (!IsValidTokenChar((char)ch))
                 {
-                    RejectRequestLine(data, length);
+                    RejectRequestLine(data);
                 }
             }
 
-            return new Span<byte>(data, methodLength);
+            return data.Slice(0, methodLength);
         }
 
         private static bool IsValidTokenChar(char c)
@@ -476,20 +465,20 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         private void RejectRequest(RequestRejectionReason reason)
             => throw BadHttpRequestException.GetException(reason);
 
-        private unsafe void RejectRequestLine(byte* requestLine, int length)
-            => throw GetInvalidRequestException(RequestRejectionReason.InvalidRequestLine, requestLine, length);
+        private void RejectRequestLine(Span<byte> requestLine)
+            => throw GetInvalidRequestException(RequestRejectionReason.InvalidRequestLine, requestLine);
 
-        private unsafe void RejectRequestHeader(byte* headerLine, int length)
-            => throw GetInvalidRequestException(RequestRejectionReason.InvalidRequestHeader, headerLine, length);
+        private void RejectRequestHeader(Span<byte> headerLine)
+            => throw GetInvalidRequestException(RequestRejectionReason.InvalidRequestHeader, headerLine);
 
-        private unsafe void RejectUnknownVersion(byte* version, int length)
-            => throw GetInvalidRequestException(RequestRejectionReason.UnrecognizedHTTPVersion, version, length);
+        private void RejectUnknownVersion(Span<byte> version)
+            => throw GetInvalidRequestException(RequestRejectionReason.UnrecognizedHTTPVersion, version);
 
-        private unsafe BadHttpRequestException GetInvalidRequestException(RequestRejectionReason reason, byte* detail, int length)
+        private BadHttpRequestException GetInvalidRequestException(RequestRejectionReason reason, Span<byte> detail)
             => BadHttpRequestException.GetException(
                 reason,
                 Log.IsEnabled(LogLevel.Information)
-                    ? new Span<byte>(detail, length).GetAsciiStringEscaped(Constants.MaxExceptionDetailSize)
+                    ? detail.GetAsciiStringEscaped(Constants.MaxExceptionDetailSize)
                     : string.Empty);
 
         public void Reset()

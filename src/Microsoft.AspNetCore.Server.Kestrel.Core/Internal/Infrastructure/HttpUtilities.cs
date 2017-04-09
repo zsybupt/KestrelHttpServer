@@ -160,33 +160,32 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe bool GetKnownMethod(this Span<byte> span, out HttpMethod method, out int length)
         {
-            fixed (byte* data = &span.DangerousGetPinnableReference())
-            {
-                method = GetKnownMethod(data, span.Length, out length);
-                return method != HttpMethod.Custom;
-            }
+            method = GetKnownMethod(span, out length);
+            return method != HttpMethod.Custom;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal unsafe static HttpMethod GetKnownMethod(byte* data, int length, out int methodLength)
+        internal unsafe static HttpMethod GetKnownMethod(Span<byte> data, out int methodLength)
         {
+            ref byte start = ref data.DangerousGetPinnableReference();
+
             methodLength = 0;
-            if (length < sizeof(uint))
+            if (data.Length < sizeof(uint))
             {
                 return HttpMethod.Custom;
             }
-            else if (*(uint*)data == _httpGetMethodInt)
+            else if (Unsafe.ReadUnaligned<uint>(ref start) == _httpGetMethodInt)
             {
                 methodLength = 3;
                 return HttpMethod.Get;
             }
-            else if (length < sizeof(ulong))
+            else if (data.Length < sizeof(ulong))
             {
                 return HttpMethod.Custom;
             }
             else
             {
-                var value = *(ulong*)data;
+                var value = Unsafe.ReadUnaligned<ulong>(ref start);
                 foreach (var x in _knownMethods)
                 {
                     if ((value & x.Item1) == x.Item2)
@@ -212,24 +211,21 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
         /// </remarks>
         /// <returns><c>true</c> if the input matches a known string, <c>false</c> otherwise.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe bool GetKnownVersion(this Span<byte> span, out HttpVersion knownVersion, out byte length)
+        public static bool GetKnownVersion(this Span<byte> span, out HttpVersion knownVersion, out byte length)
         {
-            fixed (byte* data = &span.DangerousGetPinnableReference())
+            knownVersion = GetKnownVersion(span);
+            if (knownVersion != HttpVersion.Unknown)
             {
-                knownVersion = GetKnownVersion(data, span.Length);
-                if (knownVersion != HttpVersion.Unknown)
-                {
-                    length = sizeof(ulong);
-                    return true;
-                }
-
-                length = 0;
-                return false;
+                length = sizeof(ulong);
+                return true;
             }
+
+            length = 0;
+            return false;
         }
 
         /// <summary>
-        /// Checks 9 bytes from <paramref name="location"/>  correspond to a known HTTP version.
+        /// Checks 9 bytes from <paramref name="data"/>  correspond to a known HTTP version.
         /// </summary>
         /// <remarks>
         /// A "known HTTP version" Is is either HTTP/1.0 or HTTP/1.1.
@@ -240,11 +236,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
         /// </remarks>
         /// <returns><c>true</c> if the input matches a known string, <c>false</c> otherwise.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal unsafe static HttpVersion GetKnownVersion(byte* location, int length)
+        internal static HttpVersion GetKnownVersion(Span<byte> data)
         {
             HttpVersion knownVersion;
-            var version = *(ulong*)location;
-            if (length < sizeof(ulong) + 1 || location[sizeof(ulong)] != (byte)'\r')
+            var version = Unsafe.ReadUnaligned<ulong>(ref data.DangerousGetPinnableReference());
+            if (data.Length < sizeof(ulong) + 1 || data[sizeof(ulong)] != (byte)'\r')
             {
                 knownVersion = HttpVersion.Unknown;
             }
@@ -271,20 +267,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
         /// <param name="knownScheme">A reference to the known scheme, if the input matches any</param>
         /// <returns>True when memory starts with known http or https schema</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe bool GetKnownHttpScheme(this Span<byte> span, out HttpScheme knownScheme)
+        public static bool GetKnownHttpScheme(this Span<byte> span, out HttpScheme knownScheme)
         {
-            fixed (byte* data = &span.DangerousGetPinnableReference())
+            if (span.Length >= sizeof(ulong))
             {
-                return GetKnownHttpScheme(data, span.Length, out knownScheme);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe bool GetKnownHttpScheme(byte* location, int length, out HttpScheme knownScheme)
-        {
-            if (length >= sizeof(ulong))
-            {
-                var scheme = *(ulong*)location;
+                var scheme = Unsafe.ReadUnaligned<ulong>(ref span.DangerousGetPinnableReference());
                 if ((scheme & _mask7Chars) == _httpSchemeLong)
                 {
                     knownScheme = HttpScheme.Http;
