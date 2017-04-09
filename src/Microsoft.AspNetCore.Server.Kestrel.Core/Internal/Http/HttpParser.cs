@@ -389,7 +389,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             if (lengthChanged)
             {
                 // Length changed
-                valueBuffer = headerLine.Slice(valueStart, valueEnd - valueStart + 1)
+                valueBuffer = headerLine.Slice(valueStart, valueEnd - valueStart + 1);
             }
 
             var nameBuffer = headerLine.Slice(0, nameEnd);
