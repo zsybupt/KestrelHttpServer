@@ -32,7 +32,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
 
             var connectionId = CorrelationIdGenerator.GetNextId();
 
-            var context = new ConnectionContext(_serviceContext)
+            var context = new ConnectionContext(_listenOptions.Application, _serviceContext)
             {
                 ConnectionId = connectionId,
                 Adapters = _listenOptions.ConnectionAdapters,
@@ -80,8 +80,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
         {
             private ServiceContext _serviceContext;
 
-            public ConnectionContext(ServiceContext serviceContext)
+            public ConnectionContext(IApplication application, ServiceContext serviceContext)
             {
+                Application = application;
                 _serviceContext = serviceContext;
             }
 
@@ -106,6 +107,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
 
             public List<IConnectionAdapter> Adapters { get; set; }
 
+            public IApplication Application { get; }
+
             public IConnectionInformation ConnectionInfo { get; set; }
 
             public IPipe Input { get; set; }
@@ -128,8 +131,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
             {
                 _serviceContext.Log.ConnectionStart(ConnectionId);
 
-                using (var stream = new RawStream(Input.Reader, Output.Writer))
+                if (Adapters.Count == 0)
                 {
+                    await Application.ExecuteAsync(ConnectionId, ConnectionInfo, Input.Reader, Output.Writer);
+                }
+                else
+                {
+                    var stream = new RawStream(Input.Reader, Output.Writer);
                     var adapterContext = new ConnectionAdapterContext(stream);
                     var adaptedConnections = new IAdaptedConnection[Adapters.Count];
 
@@ -141,61 +149,72 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
                         adapterContext = new ConnectionAdapterContext(adaptedConnection.ConnectionStream);
                     }
 
-                    using (var filteredStream = adapterContext.ConnectionStream)
+                    // The stream wasn't modified
+                    if (adapterContext.ConnectionStream != stream)
                     {
-                        var adaptedPipeline = new AdaptedPipeline(
-                            adapterContext.ConnectionStream,
-                            ConnectionInfo.PipeFactory.Create(AdaptedInputPipeOptions),
-                            ConnectionInfo.PipeFactory.Create(AdaptedOutputPipeOptions));
+                        using (var filteredStream = adapterContext.ConnectionStream)
+                        {
+                            var adaptedPipeline = new AdaptedPipeline(
+                                adapterContext.ConnectionStream,
+                                ConnectionInfo.PipeFactory.Create(AdaptedInputPipeOptions),
+                                ConnectionInfo.PipeFactory.Create(AdaptedOutputPipeOptions));
 
-                        await adaptedPipeline.RunAsync();
+                            var pipelineTask = adaptedPipeline.RunAsync();
+                            var applicationTask = Application.ExecuteAsync(ConnectionId, ConnectionInfo, adaptedPipeline.Input.Reader, adaptedPipeline.Output.Writer);
+
+                            await applicationTask;
+                            await pipelineTask;
+                        }
+                    }
+                    else
+                    {
+                        await Application.ExecuteAsync(ConnectionId, ConnectionInfo, Input.Reader, Output.Writer);
                     }
                 }
             }
         }
+    }
 
-        public interface IApplication
+    public interface IApplication
+    {
+        Task ExecuteAsync(string connectionId, IConnectionInformation info, IPipeReader reader, IPipeWriter writer);
+    }
+
+    // TODO: Replace HttpConnectionHandler with this
+    public class HttpApplication<TContext> : IApplication
+    {
+        private readonly IHttpApplication<TContext> _application;
+        private readonly ServiceContext _serviceContext;
+        private Frame _frame;
+
+        public HttpApplication(ServiceContext serviceContext, IHttpApplication<TContext> application)
         {
-            void Abort(Exception ex = null);
-            void OnConnectionClosed(Exception ex = null);
-            Task ExecuteAsync(string connectionId, IConnectionInformation info, IPipeReader reader, IPipeWriter writer);
+            _serviceContext = serviceContext;
+            _application = application;
         }
 
-        public class HttpApplication<TContext> : IApplication
+        public void Abort(Exception ex = null)
         {
-            private readonly IHttpApplication<TContext> _application;
-            private readonly ServiceContext _serviceContext;
-            private Frame _frame;
+            _frame.Abort(ex);
+        }
 
-            public HttpApplication(ServiceContext serviceContext, IHttpApplication<TContext> application)
+        public Task ExecuteAsync(string connectionId, IConnectionInformation info, IPipeReader reader, IPipeWriter writer)
+        {
+            _frame = new Frame<TContext>(_application, new FrameContext
             {
-                _serviceContext = serviceContext;
-                _application = application;
-            }
+                ConnectionId = connectionId,
+                ConnectionInformation = info,
+                ServiceContext = _serviceContext
+            });
 
-            public void Abort(Exception ex = null)
-            {
-                _frame.Abort(ex);
-            }
+            return _frame.RequestProcessingAsync();
+        }
 
-            public Task ExecuteAsync(string connectionId, IConnectionInformation info, IPipeReader reader, IPipeWriter writer)
-            {
-                _frame = new Frame<TContext>(_application, new FrameContext
-                {
-                    ConnectionId = connectionId,
-                    ConnectionInformation = info,
-                    ServiceContext = _serviceContext
-                });
+        public async void OnConnectionClosed(Exception ex = null)
+        {
+            _frame.Abort(ex);
 
-                return _frame.RequestProcessingAsync();
-            }
-
-            public async void OnConnectionClosed(Exception ex = null)
-            {
-                _frame.Abort(ex);
-
-                await _frame.StopAsync();
-            }
+            await _frame.StopAsync();
         }
     }
 
@@ -289,4 +308,3 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
         }
     }
 }
-

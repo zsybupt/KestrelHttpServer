@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Adapter.Internal;
+using Microsoft.AspNetCore.Server.Kestrel.Core.Internal;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core
@@ -82,6 +83,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core
         /// Defaults to empty.
         /// </remarks>
         public List<IConnectionAdapter> ConnectionAdapters { get; } = new List<IConnectionAdapter>();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public IApplication Application { get; set; }
 
         /// <summary>
         /// Gets the name of this endpoint to display on command-line when the web server starts.
