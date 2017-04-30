@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SampleApp
 {
@@ -45,6 +46,11 @@ namespace SampleApp
                 {
                     factory.AddConsole();
                 })
+                .ConfigureServices(services =>
+                {
+                    services.AddSockets();
+                    services.AddEndPoint<MyEndPoint>();
+                })
                 .UseKestrel(options =>
                 {
                     // Run callbacks on the transport thread
@@ -58,10 +64,18 @@ namespace SampleApp
                         listenOptions.UseConnectionLogging();
                     });
 
+                    // HTTPS end point
                     options.Listen(IPAddress.Loopback, 5001, listenOptions =>
                     {
                         listenOptions.UseHttps("testCert.pfx", "testPassword");
                         listenOptions.UseConnectionLogging();
+                    });
+
+                    // RAW TCP end point
+                    options.Listen(IPAddress.Loopback, 9001, listenOptions =>
+                    {
+                        listenOptions.UseConnectionLogging();
+                        listenOptions.UseEndPoint<MyEndPoint>();
                     });
 
                     options.UseSystemd();

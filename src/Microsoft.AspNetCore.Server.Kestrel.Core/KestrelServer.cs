@@ -131,7 +131,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core
 
                 async Task OnBind(ListenOptions endpoint)
                 {
-                    var connectionHandler = new ConnectionHandler<TContext>(endpoint, ServiceContext, application);
+                    var connectionHandler = new ConnectionPipelineHandler(endpoint, ServiceContext);
                     var transport = _transportFactory.Create(endpoint, connectionHandler);
                     _transports.Add(transport);
 

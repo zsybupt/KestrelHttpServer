@@ -55,7 +55,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Tests
         {
             var transportContext = new TestLibuvTransportContext()
             {
-                ConnectionHandler = new ConnectionHandler<HttpContext>(listenOptions, new TestServiceContext(), new DummyApplication(TestApp.EchoApp))
+                ConnectionHandler = new HttpConnectionHandler<HttpContext>(listenOptions, new TestServiceContext(), new DummyApplication(TestApp.EchoApp))
             };
             var transport = new LibuvTransport(transportContext, listenOptions);
 

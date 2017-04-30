@@ -96,50 +96,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Adapter.Internal
             }
         }
 
-        public async Task WriteOutputAsync()
+        public Task WriteOutputAsync()
         {
-            try
-            {
-                while (true)
-                {
-                    var readResult = await _pipe.Reader.ReadAsync();
-                    var buffer = readResult.Buffer;
-
-                    try
-                    {
-                        if (buffer.IsEmpty && readResult.IsCompleted)
-                        {
-                            break;
-                        }
-
-                        if (buffer.IsEmpty)
-                        {
-                            await _outputStream.FlushAsync();
-                        }
-                        else if (buffer.IsSingleSpan)
-                        {
-                            var array = buffer.First.GetArray();
-                            await _outputStream.WriteAsync(array.Array, array.Offset, array.Count);
-                        }
-                        else
-                        {
-                            foreach (var memory in buffer)
-                            {
-                                var array = memory.GetArray();
-                                await _outputStream.WriteAsync(array.Array, array.Offset, array.Count);
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        _pipe.Reader.Advance(buffer.End);
-                    }
-                }
-            }
-            finally
-            {
-                _pipe.Reader.Complete();
-            }
+            return Task.CompletedTask;
         }
     }
 }

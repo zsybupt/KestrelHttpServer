@@ -14,7 +14,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Adapter.Internal
         private const int MinAllocBufferSize = 2048;
 
         private readonly Stream _filteredStream;
-        private readonly StreamSocketOutput _output;
 
         public AdaptedPipeline(
             Stream filteredStream,
@@ -22,25 +21,72 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Adapter.Internal
             IPipe outputPipe)
         {
             Input = inputPipe;
-            _output = new StreamSocketOutput(filteredStream, outputPipe);
+            Output = outputPipe;
 
             _filteredStream = filteredStream;
         }
 
         public IPipe Input { get; }
 
-        public ISocketOutput Output => _output;
+        public IPipe Output { get; }
 
         public async Task RunAsync()
         {
             var inputTask = ReadInputAsync();
-            var outputTask = _output.WriteOutputAsync();
+            var outputTask = WriteOutputAsync();
 
             await inputTask;
-
-            _output.Dispose();
-
             await outputTask;
+        }
+
+        private async Task WriteOutputAsync()
+        {
+            try
+            {
+                while (true)
+                {
+                    var readResult = await Output.Reader.ReadAsync();
+                    var buffer = readResult.Buffer;
+
+                    try
+                    {
+                        if (buffer.IsEmpty && readResult.IsCompleted)
+                        {
+                            break;
+                        }
+
+                        if (buffer.IsEmpty)
+                        {
+                            await _filteredStream.FlushAsync();
+                        }
+                        else if (buffer.IsSingleSpan)
+                        {
+                            var array = buffer.First.GetArray();
+                            await _filteredStream.WriteAsync(array.Array, array.Offset, array.Count);
+                        }
+                        else
+                        {
+                            foreach (var memory in buffer)
+                            {
+                                var array = memory.GetArray();
+                                await _filteredStream.WriteAsync(array.Array, array.Offset, array.Count);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        Output.Reader.Advance(buffer.End);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // TODO
+            }
+            finally
+            {
+                Output.Reader.Complete();
+            }
         }
 
         private async Task ReadInputAsync()

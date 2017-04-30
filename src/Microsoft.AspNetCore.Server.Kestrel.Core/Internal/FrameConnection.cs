@@ -134,8 +134,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
         {
             try
             {
-                var rawSocketOutput = _frame.Output;
-                var rawStream = new RawStream(_frame.Input, rawSocketOutput);
+                var rawStream = new RawStream(_context.Input.Reader, _context.Output.Writer);
                 var adapterContext = new ConnectionAdapterContext(rawStream);
                 var adaptedConnections = new IAdaptedConnection[_connectionAdapters.Count];
 
@@ -155,7 +154,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
                         PipeFactory.Create(AdaptedOutputPipeOptions));
 
                     _frame.Input = _adaptedPipeline.Input.Reader;
-                    _frame.Output = _adaptedPipeline.Output;
+                    _frame.Output = new OutputProducer(_adaptedPipeline.Output.Writer, _frame, ConnectionId, Log);
 
                     _adaptedPipelineTask = RunAdaptedPipeline();
                 }
