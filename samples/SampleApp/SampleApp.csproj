@@ -18,7 +18,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="$(AspNetCoreVersion)" />
-    <PackageReference Include="Microsoft.AspNetCore.Sockets" Version="1.0.0-*" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.0.0-*" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="1.0.0-*" />
   </ItemGroup>
 
 </Project>

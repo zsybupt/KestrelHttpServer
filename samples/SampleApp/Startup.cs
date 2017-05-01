@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace SampleApp
 {
@@ -19,6 +21,11 @@ namespace SampleApp
         public void Configure(IApplicationBuilder app, ILoggerFactory loggerFactory)
         {
             var logger = loggerFactory.CreateLogger("Default");
+
+            app.UseSignalR(routes =>
+            {
+                routes.MapHub<Chat>("/chat");
+            });
 
             app.Run(async context =>
             {
@@ -48,8 +55,7 @@ namespace SampleApp
                 })
                 .ConfigureServices(services =>
                 {
-                    services.AddSockets();
-                    services.AddEndPoint<MyEndPoint>();
+                    services.AddSignalR();
                 })
                 .UseKestrel(options =>
                 {
@@ -75,7 +81,7 @@ namespace SampleApp
                     options.Listen(IPAddress.Loopback, 9001, listenOptions =>
                     {
                         listenOptions.UseConnectionLogging();
-                        listenOptions.UseEndPoint<MyEndPoint>();
+                        listenOptions.UseHub<Chat>();
                     });
 
                     options.UseSystemd();
@@ -93,6 +99,14 @@ namespace SampleApp
                 .Build();
 
             host.Run();
+        }
+    }
+
+    public class Chat : Hub
+    {
+        public void Send(string data)
+        {
+            Clients.All.InvokeAsync("Send", data);
         }
     }
 }

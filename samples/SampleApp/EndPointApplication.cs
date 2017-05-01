@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.System.IO.Pipelines;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Sockets;
 using Microsoft.AspNetCore.Sockets.Internal;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +33,11 @@ namespace SampleApp
             var manager = options.KestrelServerOptions.ApplicationServices.GetRequiredService<ConnectionManager>();
             options.Application = new EndpointApplication(endpoint, manager);
             return options;
+        }
+
+        public static ListenOptions UseHub<THub>(this ListenOptions options) where THub : Hub
+        {
+            return options.UseEndPoint<HubEndPoint<THub>>();
         }
     }
 
@@ -111,6 +118,8 @@ namespace SampleApp
                         {
                             break;
                         }
+
+                        // https://github.com/aspnet/SignalR/blob/dev/specs/TransportProtocols.md#binary-encoding-supportsbinary--true
 
                         if (!buffer.IsEmpty)
                         {
