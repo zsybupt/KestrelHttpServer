@@ -52,6 +52,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
 
         public void Schedule(Action<object> action, object state)
         {
+            if (Thread.CurrentThread.IsThreadPoolThread)
+            {
+                _runAction((Action)(() => action(state)));
+                return;
+            }
+
             Run(() => action(state));
         }
     }

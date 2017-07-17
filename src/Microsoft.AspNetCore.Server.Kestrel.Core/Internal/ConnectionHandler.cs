@@ -63,18 +63,14 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
         internal PipeOptions GetInputPipeOptions(IScheduler writerScheduler) => new PipeOptions
         {
             ReaderScheduler = _serviceContext.ThreadPool,
-            WriterScheduler = writerScheduler,
-            MaximumSizeHigh = _serviceContext.ServerOptions.Limits.MaxRequestBufferSize ?? 0,
-            MaximumSizeLow = _serviceContext.ServerOptions.Limits.MaxRequestBufferSize ?? 0
-        };
+            WriterScheduler = writerScheduler
+        }.SetMaximumSize(_serviceContext.ServerOptions.Limits.MaxRequestBufferSize ?? 0);
 
         internal PipeOptions GetOutputPipeOptions(IScheduler readerScheduler) => new PipeOptions
         {
             ReaderScheduler = readerScheduler,
-            WriterScheduler = _serviceContext.ThreadPool,
-            MaximumSizeHigh = GetOutputResponseBufferSize(),
-            MaximumSizeLow = GetOutputResponseBufferSize()
-        };
+            WriterScheduler = _serviceContext.ThreadPool
+        }.SetMaximumSize(GetOutputResponseBufferSize());
 
         private long GetOutputResponseBufferSize()
         {

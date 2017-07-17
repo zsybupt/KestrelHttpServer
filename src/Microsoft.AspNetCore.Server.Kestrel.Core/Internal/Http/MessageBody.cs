@@ -44,7 +44,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
             try
             {
-                var awaitable = _context.Input.ReadAsync();
+                ReadableBufferAwaitable awaitable = _context.Input.ReadAsync();
 
                 if (!awaitable.IsCompleted)
                 {
@@ -56,70 +56,81 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 while (true)
                 {
                     var result = await awaitable;
+                    WritableBuffer writableBuffer;
+                    var done = false;
 
-                    if (_context.TimeoutControl.TimedOut)
+                    do
                     {
-                        _context.ThrowRequestRejected(RequestRejectionReason.RequestTimeout);
-                    }
-
-                    var readableBuffer = result.Buffer;
-                    var consumed = readableBuffer.Start;
-                    var examined = readableBuffer.End;
-
-                    try
-                    {
-                        if (_canceled)
+                        if (_context.TimeoutControl.TimedOut)
                         {
-                            break;
+                            _context.ThrowRequestRejected(RequestRejectionReason.RequestTimeout);
                         }
 
-                        if (!readableBuffer.IsEmpty)
+
+                        var readableBuffer = result.Buffer;
+                        var consumed = readableBuffer.Start;
+                        var examined = readableBuffer.End;
+
+                        try
                         {
-                            var writableBuffer = _context.RequestBodyPipe.Writer.Alloc(1);
-                            bool done;
-
-                            try
-                            {
-                                done = Read(readableBuffer, writableBuffer, out consumed, out examined);
-                            }
-                            finally
-                            {
-                                writableBuffer.Commit();
-                            }
-
-                            var writeAwaitable = writableBuffer.FlushAsync();
-                            var backpressure = false;
-
-                            if (!writeAwaitable.IsCompleted)
-                            {
-                                // Backpressure, stop controlling incoming data rate until data is read.
-                                backpressure = true;
-                                TryPauseTimingReads();
-                            }
-
-                            await writeAwaitable;
-
-                            if (backpressure)
-                            {
-                                TryResumeTimingReads();
-                            }
-
-                            if (done)
+                            if (_canceled)
                             {
                                 break;
                             }
+
+                            if (!readableBuffer.IsEmpty)
+                            {
+                                writableBuffer = _context.RequestBodyPipe.Writer.Alloc(1);
+
+                                try
+                                {
+                                    done = Read(readableBuffer, writableBuffer, out consumed, out examined);
+                                }
+                                finally
+                                {
+                                    writableBuffer.Commit();
+                                }
+
+                                if (done)
+                                {
+                                    break;
+                                }
+                            }
+                            else if (result.IsCompleted)
+                            {
+                                _context.ThrowRequestRejected(RequestRejectionReason.UnexpectedEndOfRequestContent);
+                            }
                         }
-                        else if (result.IsCompleted)
+                        finally
                         {
-                            _context.ThrowRequestRejected(RequestRejectionReason.UnexpectedEndOfRequestContent);
+                            _context.Input.Advance(consumed, examined);
                         }
 
-                        awaitable = _context.Input.ReadAsync();
-                    }
-                    finally
+                    } while (_context.Input.TryRead(out result));
+
+                    var writeAwaitable = writableBuffer.FlushAsync();
+                    var backpressure = false;
+
+                    if (!writeAwaitable.IsCompleted)
                     {
-                        _context.Input.Advance(consumed, examined);
+                        // Backpressure, stop controlling incoming data rate until data is read.
+                        backpressure = true;
+                        TryPauseTimingReads();
                     }
+
+                    if (backpressure)
+                    {
+                        TryResumeTimingReads();
+                    }
+
+                    await writeAwaitable;
+
+                    if (done)
+                    {
+                        break;
+                    }
+
+                    awaitable = _context.Input.ReadAsync();
                 }
             }
             catch (Exception ex)

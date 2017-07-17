@@ -28,6 +28,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             return buffer.ToArray();
         }
 
+        public static PipeOptions SetMaximumSize(this PipeOptions options, long? size)
+        {
+            options.MaximumSizeHigh = size ?? 0;
+            options.MaximumSizeLow = (size ?? 0) * 3 / 4;
+            return options;
+        }
+
         public static ArraySegment<byte> GetArray(this Buffer<byte> buffer)
         {
             ArraySegment<byte> result;
