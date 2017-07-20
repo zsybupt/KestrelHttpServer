@@ -76,11 +76,86 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                 }
             };
 
-
             using (var server = new TestServer(App, serviceContext, listenOptions))
             {
+                var validateCertificate = true;
+                var uri = new Uri($"https://127.0.0.1:{server.Port}");
+
+                //using (var client = new TcpClient())
+                using (var socket = await HttpClientSlim2.GetSocket(uri))
+                {
+                    //var isConnectedTask = HttpClientSlim2.TestIsConnectedAsync(socket);
+
+                    //Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] TcpClient created.", DateTime.UtcNow);
+
+                    //await client.ConnectAsync("127.0.0.1", server.Port);
+
+                    //Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] TcpClient connected.", DateTime.UtcNow);
+
+                    //var stream = new SslStream(client.GetStream(), false, (sender, certificate, chain, errors) => true,
+                    //    (sender, host, certificates, certificate, issuers) => clientCertificate ?? _x509Certificate2);
+
+                    var stream = new SslStream(new NetworkStream(socket, ownsSocket: false), leaveInnerStreamOpen: false, userCertificateValidationCallback:
+                        validateCertificate ? null : (RemoteCertificateValidationCallback)((a, b, c, d) => true));
+
+                    //Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Client SslStream created.", DateTime.UtcNow);
+
+                    Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Starting AuthenticateAsClientAsync.", DateTime.UtcNow);
+
+                    try
+                    {
+                        var ex = await Assert.ThrowsAnyAsync<Exception>(async () => await stream.AuthenticateAsClientAsync(uri.Host, new X509CertificateCollection(), SslProtocols.Tls11 | SslProtocols.Tls12, checkCertificateRevocation: validateCertificate));
+                        Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] AuthenticateAsClientAsync threw.", DateTime.UtcNow);
+                    }
+                    catch (Exception)
+                    {
+                        Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] AuthenticateAsClientAsync didn't thow!", DateTime.UtcNow);
+
+                        using (var writer = new StreamWriter(stream, Encoding.ASCII, bufferSize: 1024, leaveOpen: true))
+                        {
+                            await writer.WriteAsync($"GET {uri.PathAndQuery} HTTP/1.0\r\n");
+                            await writer.WriteAsync($"Host: {uri.Authority}\r\n");
+                            await writer.WriteAsync("\r\n");
+                        }
+
+                        var response = await ReadResponse(stream);
+
+                        Console.WriteLine("Received response!!??????!?!: {0}", response);
+                    }
+
+                    //await isConnectedTask;
+                }
+
+                Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Calling HttpClientSlim2.GetStringAsync.", DateTime.UtcNow);
+
                 await Assert.ThrowsAnyAsync<Exception>(
-                    () => HttpClientSlim.GetStringAsync($"https://localhost:{server.Port}/"));
+                    () => HttpClientSlim2.GetStringAsync($"https://localhost:{server.Port}/"));
+
+                Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] HttpClientSlim2.GetStringAsync threw.", DateTime.UtcNow);
+
+            }
+        }
+
+        private static HttpStatusCode GetStatus(string response)
+        {
+            var statusStart = response.IndexOf(' ') + 1;
+            var statusEnd = response.IndexOf(' ', statusStart) - 1;
+            var statusLength = statusEnd - statusStart + 1;
+            return (HttpStatusCode)int.Parse(response.Substring(statusStart, statusLength));
+        }
+
+        private static async Task<string> ReadResponse(Stream stream)
+        {
+            using (var reader = new StreamReader(stream, Encoding.ASCII, detectEncodingFromByteOrderMarks: true,
+                bufferSize: 1024, leaveOpen: true))
+            {
+                var response = await reader.ReadToEndAsync().ConfigureAwait(false);
+
+                var status = GetStatus(response);
+                new HttpResponseMessage(status).EnsureSuccessStatusCode();
+
+                var body = response.Substring(response.IndexOf("\r\n\r\n") + 5);
+                return body;
             }
         }
 
@@ -449,8 +524,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
         private static async Task<SslStream> OpenSslStream(TcpClient client, TestServer server, X509Certificate2 clientCertificate = null)
         {
             await client.ConnectAsync("127.0.0.1", server.Port);
+
+            Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] TcpClient connected.", DateTime.UtcNow);
+
             var stream = new SslStream(client.GetStream(), false, (sender, certificate, chain, errors) => true,
                 (sender, host, certificates, certificate, issuers) => clientCertificate ?? _x509Certificate2);
+
+            Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Client SslStream created.", DateTime.UtcNow);
 
             return stream;
         }

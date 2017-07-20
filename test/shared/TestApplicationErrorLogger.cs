@@ -40,11 +40,11 @@ namespace Microsoft.AspNetCore.Testing
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
-#if true
+#if false 
             if (logLevel == LogLevel.Critical && ThrowOnCriticalErrors)
 #endif
             {
-                Console.WriteLine($"Log {logLevel}[{eventId}]: {formatter(state, exception)} {exception?.Message}");
+                Console.WriteLine($"[{DateTime.UtcNow:MM/dd/yyy HH:mm:ss.fff}] Log {logLevel}[{eventId}]: {formatter(state, exception)} {exception?.Message}");
 
                 if (logLevel == LogLevel.Critical && ThrowOnCriticalErrors)
                 {

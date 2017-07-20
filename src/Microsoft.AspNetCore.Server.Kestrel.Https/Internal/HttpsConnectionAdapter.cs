@@ -32,6 +32,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Https.Internal
 
         public HttpsConnectionAdapter(HttpsConnectionAdapterOptions options, ILoggerFactory loggerFactory)
         {
+            Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] HttpsConnectionAdapter ctor", DateTime.UtcNow);
+
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
@@ -55,6 +57,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Https.Internal
 
         public Task<IAdaptedConnection> OnConnectionAsync(ConnectionAdapterContext context)
         {
+            Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Connection started.", DateTime.UtcNow);
+
             // Don't trust SslStream not to block.
             return Task.Run(() => InnerOnConnectionAsync(context));
         }
@@ -75,10 +79,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Https.Internal
                     leaveInnerStreamOpen: false,
                     userCertificateValidationCallback: (sender, certificate, chain, sslPolicyErrors) =>
                     {
+                        Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Entered userCertificateValidationCallback.", DateTime.UtcNow);
+
                         if (certificate == null)
                         {
+                            Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Client cert not found. Client cert mode: {1}.", DateTime.UtcNow, _options.ClientCertificateMode);
                             return _options.ClientCertificateMode != ClientCertificateMode.RequireCertificate;
                         }
+
+                        Console.WriteLine("[{0:MM/dd/yyyy HH:mm:ss.fff}] Client cert found: {1}. Client cert mode: {2}.", DateTime.UtcNow, certificate.ToString(), _options.ClientCertificateMode);
 
                         if (_options.ClientCertificateValidation == null)
                         {
@@ -110,14 +119,24 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Https.Internal
 
             try
             {
+                Console.WriteLine("[{0:MM/dd/yyy HH:mm:ss.fff}] Handshake starting.", DateTime.UtcNow);
+
                 await sslStream.AuthenticateAsServerAsync(_serverCertificate, certificateRequired,
                         _options.SslProtocols, _options.CheckCertificateRevocation);
+
+                Console.WriteLine("[{0:MM/dd/yyy HH:mm:ss.fff}] Handshake completed.", DateTime.UtcNow);
             }
             catch (IOException ex)
             {
+                Console.WriteLine("[{0:MM/dd/yyy HH:mm:ss.fff}] Handshake failed with IOException. {1}", DateTime.UtcNow, ex);
+
                 _logger?.LogInformation(1, ex, HttpsStrings.AuthenticationFailed);
                 sslStream.Dispose();
                 return _closedAdaptedConnection;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[{0:MM/dd/yyy HH:mm:ss.fff}] handshake failed!?! {1}", DateTime.UtcNow, ex);
             }
 
             // Always set the feature even though the cert might be null
