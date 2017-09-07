@@ -33,7 +33,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         public unsafe bool ParseRequestLine(TRequestHandler handler, ReadableBuffer buffer, out ReadCursor consumed, out ReadCursor examined)
         {
-            Thread.Sleep(100);
+            Thread.Sleep(10);
             consumed = buffer.Start;
             examined = buffer.End;
 
