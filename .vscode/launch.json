@@ -14,30 +14,6 @@
       "processId": "${command:pickProcess}"
     },
     {
-      "name": "Debug: TlsApp",
-      "type": "coreclr",
-      "request": "launch",
-      "program": "${workspaceRoot}/samples/TlsApp/bin/Debug/netcoreapp2.0/TlsApp.dll",
-      "cwd": "${workspaceRoot}/samples/TlsApp",
-      "console": "internalConsole",
-      "stopAtEntry": false,
-      "internalConsoleOptions": "openOnSessionStart",
-      "launchBrowser": {
-        "enabled": true,
-        "args": "https://127.0.0.1:5000",
-        "windows": {
-          "command": "cmd.exe",
-          "args": "/C start ${auto-detect-url}"
-        },
-        "osx": {
-          "command": "open"
-        },
-        "linux": {
-          "command": "xdg-open"
-        }
-      }
-    },
-    {
       "name": "Debug: SampleApp",
       "type": "coreclr",
       "request": "launch",
@@ -48,7 +24,7 @@
       "stopAtEntry": false,
       "internalConsoleOptions": "openOnSessionStart",
       "launchBrowser": {
-        "enabled": true,
+        "enabled": false,
         "args": "${auto-detect-url}",
         "windows": {
           "command": "cmd.exe",

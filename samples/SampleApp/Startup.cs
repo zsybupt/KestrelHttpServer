@@ -19,19 +19,14 @@ namespace SampleApp
     {
         public void Configure(IApplicationBuilder app, ILoggerFactory loggerFactory)
         {
-            var logger = loggerFactory.CreateLogger("Default");
-
             app.Run(async context =>
             {
-                var connectionFeature = context.Connection;
-                logger.LogDebug($"Peer: {connectionFeature.RemoteIpAddress?.ToString()}:{connectionFeature.RemotePort}"
-                    + $"{Environment.NewLine}"
-                    + $"Sock: {connectionFeature.LocalIpAddress?.ToString()}:{connectionFeature.LocalPort}");
+                await context.Request.Body.CopyToAsync(context.Response.Body);
 
-                var response = $"hello, world{Environment.NewLine}";
-                context.Response.ContentLength = response.Length;
-                context.Response.ContentType = "text/plain";
-                await context.Response.WriteAsync(response);
+                // var response = $"hello, world{Environment.NewLine}";
+                // context.Response.ContentLength = response.Length;
+                // context.Response.ContentType = "text/plain";
+                // await context.Response.WriteAsync(response);
             });
         }
 
@@ -54,6 +49,7 @@ namespace SampleApp
             var host = new WebHostBuilder()
                 .ConfigureLogging((_, factory) =>
                 {
+                    factory.SetMinimumLevel(LogLevel.Trace);
                     factory.AddConsole();
                 })
                 .UseKestrel(options =>
@@ -65,14 +61,11 @@ namespace SampleApp
                     {
                         // Uncomment the following to enable Nagle's algorithm for this endpoint.
                         //listenOptions.NoDelay = false;
-
-                        listenOptions.UseConnectionLogging();
                     });
 
                     options.Listen(IPAddress.Loopback, basePort + 1, listenOptions =>
                     {
-                        listenOptions.UseHttps("testCert.pfx", "testPassword");
-                        listenOptions.UseConnectionLogging();
+                        listenOptions.UseTls("cert.crt", "cert.key");
                     });
 
                     options.UseSystemd();
