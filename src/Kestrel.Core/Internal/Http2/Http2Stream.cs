@@ -6,7 +6,6 @@ using System.IO.Pipelines;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http;
-using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
 {
@@ -19,6 +18,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
         {
             _context = context;
 
+            _requestId = (uint)context.StreamId;
             Output = new Http2OutputProducer(StreamId, _context.FrameWriter);
         }
 
@@ -39,9 +39,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
         {
             StreamLifetimeHandler.OnStreamCompleted(StreamId);
         }
-
-        protected override string CreateRequestId()
-            => StringUtilities.ConcatAsHexSuffix(ConnectionId, ':', (uint)StreamId);
 
         protected override MessageBody CreateMessageBody()
             => Http2MessageBody.For(HttpRequestHeaders, this);

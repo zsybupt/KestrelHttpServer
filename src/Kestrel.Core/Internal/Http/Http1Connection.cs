@@ -24,7 +24,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         private readonly long _requestHeadersTimeoutTicks;
 
         private volatile bool _requestTimedOut;
-        private uint _requestCount;
 
         private HttpRequestTarget _requestTargetForm = HttpRequestTarget.Unknown;
         private Uri _absoluteRequestTarget;
@@ -399,16 +398,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             _requestTargetForm = HttpRequestTarget.Unknown;
             _absoluteRequestTarget = null;
             _remainingRequestHeadersBytesAllowed = ServerOptions.Limits.MaxRequestHeadersTotalSize + 2;
-            _requestCount++;
+            _requestId++;
         }
 
         protected override void OnRequestProcessingEnding()
         {
             Input.Complete();
         }
-
-        protected override string CreateRequestId()
-            => StringUtilities.ConcatAsHexSuffix(ConnectionId, ':', _requestCount);
 
         protected override MessageBody CreateMessageBody()
             => Http1MessageBody.For(_httpVersion, HttpRequestHeaders, this);

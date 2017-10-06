@@ -53,7 +53,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         protected HttpVersion _httpVersion;
 
-        private string _requestId;
+        protected uint _requestId;
+        private string _traceIdentifier;
         protected int _requestHeadersParsed;
 
         protected long _responseBytesWritten;
@@ -98,15 +99,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         /// </summary>
         public string TraceIdentifier
         {
-            set => _requestId = value;
+            set => _traceIdentifier = value;
             get
             {
                 // don't generate an ID until it is requested
-                if (_requestId == null)
+                if (_traceIdentifier == null)
                 {
-                    _requestId = CreateRequestId();
+                    _traceIdentifier = StringUtilities.ConcatAsHexSuffix(ConnectionId, ':', _requestId);
                 }
-                return _requestId;
+                return _traceIdentifier;
             }
         }
 
@@ -374,8 +375,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         protected virtual void OnRequestProcessingEnded()
         {
         }
-
-        protected abstract string CreateRequestId();
 
         protected abstract MessageBody CreateMessageBody();
 
