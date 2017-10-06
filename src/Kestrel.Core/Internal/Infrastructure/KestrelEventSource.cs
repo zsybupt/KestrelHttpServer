@@ -1,4 +1,4 @@
-﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System.Diagnostics.Tracing;
@@ -16,8 +16,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
     {
         public static readonly KestrelEventSource Log = new KestrelEventSource();
 
+        private readonly EventCounter _totalConnectionsCounter;
+        private readonly EventCounter _totalRequestsCounter;
+        private readonly EventCounter _rejectedConnectionsCounter;
+
         private KestrelEventSource()
         {
+            _totalConnectionsCounter = new EventCounter("TotalConnections", this);
+            _totalRequestsCounter = new EventCounter("TotalRequests", this);
+            _rejectedConnectionsCounter = new EventCounter("RejectedConnections", this);
         }
 
         // NOTE
@@ -47,6 +54,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
             string localEndPoint,
             string remoteEndPoint)
         {
+            // This counter is designed to be aggregated via sum
+            _totalConnectionsCounter.WriteMetric(1.0f);
+
+            // To track concurrent connections, we'd probably need to expose that data in this event.
+            // Each new connection would trigger us to count the total number of active connections and emit an event updating the counter.
+
             WriteEvent(
                 1,
                 connectionId,
@@ -68,6 +81,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
         [Event(2, Level = EventLevel.Verbose)]
         private void ConnectionStop(string connectionId)
         {
+            // We'd also need to update concurrent connections here.
+
             WriteEvent(2, connectionId);
         }
 
@@ -77,6 +92,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
         {
             if (IsEnabled())
             {
+                // This counter is designed to be aggregated via sum
+                _rejectedConnectionsCounter.WriteMetric(1.0f);
+
                 WriteEvent(5, connectionId);
             }
         }
@@ -95,6 +113,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
         [Event(3, Level = EventLevel.Verbose)]
         private void RequestStart(string connectionId, string requestId)
         {
+            // This counter is designed to be aggregated via sum
+            _totalRequestsCounter.WriteMetric(1.0f);
+
+            // Same comment about concurrent connections applies here but for requests.
+
             WriteEvent(3, connectionId, requestId);
         }
 
