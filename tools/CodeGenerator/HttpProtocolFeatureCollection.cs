@@ -66,6 +66,7 @@ namespace CodeGenerator
             {
                 typeof(IHttpRequestFeature),
                 typeof(IHttpResponseFeature),
+                typeof(IHttpUpgradeFeature),
                 typeof(IHttpRequestIdentifierFeature),
                 typeof(IHttpRequestLifetimeFeature),
                 typeof(IHttpConnectionFeature),
