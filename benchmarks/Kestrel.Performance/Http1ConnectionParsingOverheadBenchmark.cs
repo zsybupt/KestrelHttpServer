@@ -17,7 +17,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
         private const int InnerLoopCount = 512;
 
         public ReadableBuffer _buffer;
-        public Http1Connection<object> _http1Connection;
+        public Http1Connection _http1Connection;
 
         [IterationSetup]
         public void Setup()
@@ -35,7 +35,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
                 TimeoutControl = new MockTimeoutControl()
             };
 
-            _http1Connection = new Http1Connection<object>(application: null, context: http1ConnectionContext);
+            _http1Connection = new Http1Connection(context: http1ConnectionContext);
         }
 
         [Benchmark(Baseline = true, OperationsPerInvoke = InnerLoopCount)]

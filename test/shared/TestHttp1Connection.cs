@@ -4,14 +4,13 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http;
-using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 
 namespace Microsoft.AspNetCore.Testing
 {
-    public class TestHttp1Connection<TContext> : Http1Connection<TContext>
+    public class TestHttp1Connection : Http1Connection
     {
-        public TestHttp1Connection(IHttpApplication<TContext> application, Http1ConnectionContext context)
-            : base(application, context)
+        public TestHttp1Connection(Http1ConnectionContext context)
+            : base(context)
         {
         }
 

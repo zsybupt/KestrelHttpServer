@@ -182,7 +182,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
                 PipeFactory = new PipeFactory()
             };
 
-            var http1Connection = new Http1Connection<object>(application: null, context: http1ConnectionContext);
+            var http1Connection = new Http1Connection(context: http1ConnectionContext);
 
             http1Connection.Reset();
             _responseHeadersDirect = (HttpResponseHeaders)http1Connection.ResponseHeaders;

@@ -14,7 +14,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
     [Config(typeof(CoreConfig))]
     public class HttpProtocolFeatureCollection
     {
-        private readonly Http1Connection<object> _http1Connection;
+        private readonly Http1Connection _http1Connection;
         private IFeatureCollection _collection;
 
         [Benchmark(Baseline = true)]
@@ -89,7 +89,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
                 PipeFactory = new PipeFactory()
             };
 
-            _http1Connection = new Http1Connection<object>(application: null, context: http1ConnectionContext);
+            _http1Connection = new Http1Connection(context: http1ConnectionContext);
         }
 
         [IterationSetup]

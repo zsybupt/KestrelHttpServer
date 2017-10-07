@@ -21,7 +21,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
     {
         private static readonly byte[] _helloWorldPayload = Encoding.ASCII.GetBytes("Hello, World!");
 
-        private TestHttp1Connection<object> _http1Connection;
+        private TestHttp1Connection _http1Connection;
 
         [Params(
             BenchmarkTypes.TechEmpowerPlaintext,
@@ -121,7 +121,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
                 HttpParserFactory = f => new HttpParser<Http1ParsingHandler>()
             };
 
-            var http1Connection = new TestHttp1Connection<object>(application: null, context: new Http1ConnectionContext
+            var http1Connection = new TestHttp1Connection(context: new Http1ConnectionContext
             {
                 ServiceContext = serviceContext,
                 ConnectionFeatures = new FeatureCollection(),

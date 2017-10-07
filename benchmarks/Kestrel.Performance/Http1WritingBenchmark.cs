@@ -24,7 +24,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
         private static readonly Task _psuedoAsyncTask = Task.FromResult(27);
         private static readonly Func<object, Task> _psuedoAsyncTaskFunc = (obj) => _psuedoAsyncTask;
 
-        private readonly TestHttp1Connection<object> _http1Connection;
+        private readonly TestHttp1Connection _http1Connection;
         private (IPipeConnection Transport, IPipeConnection Application) _pair;
 
         private readonly byte[] _writeData;
@@ -91,7 +91,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
             return _http1Connection.ResponseBody.WriteAsync(_writeData, 0, _writeData.Length, default(CancellationToken));
         }
 
-        private TestHttp1Connection<object> MakeHttp1Connection()
+        private TestHttp1Connection MakeHttp1Connection()
         {
             var pipeFactory = new PipeFactory();
             var pair = pipeFactory.CreateConnectionPair();
@@ -105,7 +105,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
                 HttpParserFactory = f => new HttpParser<Http1ParsingHandler>()
             };
 
-            var http1Connection = new TestHttp1Connection<object>(application: null, context: new Http1ConnectionContext
+            var http1Connection = new TestHttp1Connection(context: new Http1ConnectionContext
             {
                 ServiceContext = serviceContext,
                 ConnectionFeatures = new FeatureCollection(),

@@ -334,7 +334,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
             else
             {
                 // Start a new stream
-                _currentHeadersStream = new Http2Stream<TContext>(application, new Http2StreamContext
+                _currentHeadersStream = new Http2Stream(new Http2StreamContext
                 {
                     ConnectionId = ConnectionId,
                     StreamId = _incomingFrame.StreamId,
@@ -362,7 +362,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
                 if (endHeaders)
                 {
                     _highestOpenedStreamId = _incomingFrame.StreamId;
-                    _ = _currentHeadersStream.ProcessRequestsAsync();
+                    _ = _currentHeadersStream.ProcessRequestsAsync(application);
                     _currentHeadersStream = null;
                 }
             }
@@ -538,7 +538,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
             if (endHeaders)
             {
                 _highestOpenedStreamId = _currentHeadersStream.StreamId;
-                _ = _currentHeadersStream.ProcessRequestsAsync();
+                _ = _currentHeadersStream.ProcessRequestsAsync(application);
                 _currentHeadersStream = null;
             }
 

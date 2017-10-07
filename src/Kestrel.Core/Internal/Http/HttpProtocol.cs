@@ -12,6 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Protocols;
@@ -380,12 +381,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         protected abstract Task<bool> ParseRequestAsync();
 
-        protected abstract void CreateHttpContext();
-
-        protected abstract void DisposeHttpContext();
-
-        protected abstract Task InvokeApplicationAsync();
-
         private void CancelRequestAbortedToken()
         {
             try
@@ -429,7 +424,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             HttpRequestHeaders.Append(name, valueString);
         }
 
-        public async Task ProcessRequestsAsync()
+        public async Task ProcessRequestsAsync<TContext>(IHttpApplication<TContext> application)
         {
             try
             {
@@ -451,14 +446,14 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
                     InitializeStreams(messageBody);
 
-                    CreateHttpContext();
+                    var httpContext = application.CreateContext(this);
                     try
                     {
                         try
                         {
                             KestrelEventSource.Log.RequestStart(this);
 
-                            await InvokeApplicationAsync();
+                            await application.ProcessRequestAsync(httpContext);
 
                             if (_requestAborted == 0)
                             {
@@ -540,7 +535,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                     }
                     finally
                     {
-                        DisposeHttpContext();
+                        application.DisposeContext(httpContext, _applicationException);
 
                         // StopStreams should be called before the end of the "if (!_requestProcessingStopping)" block
                         // to ensure InitializeStreams has been called.

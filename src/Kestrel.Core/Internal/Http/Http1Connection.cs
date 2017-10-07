@@ -7,12 +7,11 @@ using System.IO.Pipelines;
 using System.Text;
 using System.Text.Encodings.Web.Utf8;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 {
-    public abstract partial class Http1Connection : HttpProtocol
+    public partial class Http1Connection : HttpProtocol
     {
         private const byte ByteAsterisk = (byte)'*';
         private const byte ByteForwardSlash = (byte)'/';

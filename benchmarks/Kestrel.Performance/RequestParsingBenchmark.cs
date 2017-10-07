@@ -16,7 +16,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
     {
         public IPipe Pipe { get; set; }
 
-        public Http1Connection<object> Http1Connection { get; set; }
+        public Http1Connection Http1Connection { get; set; }
 
         public PipeFactory PipeFactory { get; set; }
 
@@ -39,7 +39,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
                 TimeoutControl = new MockTimeoutControl()
             };
 
-            Http1Connection = new Http1Connection<object>(application: null, context: http1ConnectionContext);
+            Http1Connection = new Http1Connection(context: http1ConnectionContext);
         }
 
         [Benchmark(Baseline = true, OperationsPerInvoke = RequestParsingData.InnerLoopCount)]

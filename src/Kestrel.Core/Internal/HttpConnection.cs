@@ -150,7 +150,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
                 }
                 else
                 {
-                    await _http1Connection.ProcessRequestsAsync();
+                    await _http1Connection.ProcessRequestsAsync(httpApplication);
                 }
 
                 await adaptedPipelineTask;
@@ -176,7 +176,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
 
         internal void CreateHttp1Connection<TContext>(IHttpApplication<TContext> httpApplication, IPipeConnection transport, IPipeConnection application)
         {
-            _http1Connection = new Http1Connection<TContext>(httpApplication, new Http1ConnectionContext
+            _http1Connection = new Http1Connection(new Http1ConnectionContext
             {
                 ConnectionId = _context.ConnectionId,
                 ConnectionFeatures = _context.ConnectionFeatures,

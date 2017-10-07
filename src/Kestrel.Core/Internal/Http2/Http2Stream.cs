@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
 {
-    public abstract partial class Http2Stream : HttpProtocol
+    public partial class Http2Stream : HttpProtocol
     {
         private readonly Http2StreamContext _context;
 
