@@ -55,75 +55,75 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Performance
             }
         }
 
-        //[Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount)]
-        //public void PlaintextAbsoluteUri()
-        //{
-        //    for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
-        //    {
-        //        InsertData(RequestParsingData.PlaintextAbsoluteUriRequest);
-        //        ParseData();
-        //    }
-        //}
+        [Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount)]
+        public void PlaintextAbsoluteUri()
+        {
+            for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
+            {
+                InsertData(RequestParsingData.PlaintextAbsoluteUriRequest);
+                ParseData();
+            }
+        }
 
-        //[Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
-        //public void PipelinedPlaintextTechEmpower()
-        //{
-        //    for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
-        //    {
-        //        InsertData(RequestParsingData.PlaintextTechEmpowerPipelinedRequests);
-        //        ParseData();
-        //    }
-        //}
+        [Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
+        public void PipelinedPlaintextTechEmpower()
+        {
+            for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
+            {
+                InsertData(RequestParsingData.PlaintextTechEmpowerPipelinedRequests);
+                ParseData();
+            }
+        }
 
-        //[Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
-        //public void PipelinedPlaintextTechEmpowerDrainBuffer()
-        //{
-        //    for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
-        //    {
-        //        InsertData(RequestParsingData.PlaintextTechEmpowerPipelinedRequests);
-        //        ParseDataDrainBuffer();
-        //    }
-        //}
+        [Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
+        public void PipelinedPlaintextTechEmpowerDrainBuffer()
+        {
+            for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
+            {
+                InsertData(RequestParsingData.PlaintextTechEmpowerPipelinedRequests);
+                ParseDataDrainBuffer();
+            }
+        }
 
-        //[Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount)]
-        //public void LiveAspNet()
-        //{
-        //    for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
-        //    {
-        //        InsertData(RequestParsingData.LiveaspnetRequest);
-        //        ParseData();
-        //    }
-        //}
+        [Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount)]
+        public void LiveAspNet()
+        {
+            for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
+            {
+                InsertData(RequestParsingData.LiveaspnetRequest);
+                ParseData();
+            }
+        }
 
-        //[Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
-        //public void PipelinedLiveAspNet()
-        //{
-        //    for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
-        //    {
-        //        InsertData(RequestParsingData.LiveaspnetPipelinedRequests);
-        //        ParseData();
-        //    }
-        //}
+        [Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
+        public void PipelinedLiveAspNet()
+        {
+            for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
+            {
+                InsertData(RequestParsingData.LiveaspnetPipelinedRequests);
+                ParseData();
+            }
+        }
 
-        //[Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount)]
-        //public void Unicode()
-        //{
-        //    for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
-        //    {
-        //        InsertData(RequestParsingData.UnicodeRequest);
-        //        ParseData();
-        //    }
-        //}
+        [Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount)]
+        public void Unicode()
+        {
+            for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
+            {
+                InsertData(RequestParsingData.UnicodeRequest);
+                ParseData();
+            }
+        }
 
-        //[Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
-        //public void UnicodePipelined()
-        //{
-        //    for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
-        //    {
-        //        InsertData(RequestParsingData.UnicodePipelinedRequests);
-        //        ParseData();
-        //    }
-        //}
+        [Benchmark(OperationsPerInvoke = RequestParsingData.InnerLoopCount * RequestParsingData.Pipelining)]
+        public void UnicodePipelined()
+        {
+            for (var i = 0; i < RequestParsingData.InnerLoopCount; i++)
+            {
+                InsertData(RequestParsingData.UnicodePipelinedRequests);
+                ParseData();
+            }
+        }
 
         private void InsertData(byte[] bytes)
         {
