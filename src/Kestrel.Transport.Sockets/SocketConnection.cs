@@ -8,6 +8,7 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Protocols;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
@@ -96,6 +97,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                     try
                     {
                         var bytesReceived = await _socket.ReceiveAsync(GetArraySegment(buffer.Buffer), SocketFlags.None);
+                        Interlocked.Increment(ref SocketTransportFactory.ReadCount);
 
                         if (bytesReceived == 0)
                         {
@@ -213,6 +215,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                             if (buffer.IsSingleSpan)
                             {
                                 await _socket.SendAsync(GetArraySegment(buffer.First), SocketFlags.None);
+                                Interlocked.Increment(ref SocketTransportFactory.WriteCount);
                             }
                             else
                             {
@@ -221,6 +224,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                                 try
                                 {
                                     await _socket.SendAsync(_sendBufferList, SocketFlags.None);
+                                    Interlocked.Increment(ref SocketTransportFactory.WriteCount);
                                 }
                                 finally
                                 {

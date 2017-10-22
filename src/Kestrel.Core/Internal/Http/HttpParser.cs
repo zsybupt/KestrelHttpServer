@@ -4,12 +4,17 @@
 using System;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 {
     public class HttpParser<TRequestHandler> : IHttpParser<TRequestHandler> where TRequestHandler : IHttpHeadersHandler, IHttpRequestLineHandler
     {
+        public static long ParseRequestLineCount;
+        public static long ParseHeadersCount;
+        public static long RequestCount;
+
         private bool _showErrorDetails;
 
         public HttpParser() : this(showErrorDetails: true)
@@ -32,6 +37,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         public unsafe bool ParseRequestLine(TRequestHandler handler, ReadableBuffer buffer, out ReadCursor consumed, out ReadCursor examined)
         {
+            Interlocked.Increment(ref ParseRequestLineCount);
+
             consumed = buffer.Start;
             examined = buffer.End;
 
@@ -187,6 +194,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         public unsafe bool ParseHeaders(TRequestHandler handler, ReadableBuffer buffer, out ReadCursor consumed, out ReadCursor examined, out int consumedBytes)
         {
+            Interlocked.Increment(ref ParseHeadersCount);
+
             consumed = buffer.Start;
             examined = buffer.End;
             consumedBytes = 0;
@@ -246,6 +255,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                                     {
                                         reader.Skip(2);
                                     }
+
+                                    Interlocked.Increment(ref RequestCount);
 
                                     done = true;
                                     return true;

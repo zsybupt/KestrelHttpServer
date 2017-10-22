@@ -3,6 +3,7 @@
 
 using System;
 using System.IO.Pipelines;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal.Networking;
 
@@ -72,6 +73,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
                             }
 
                             var writeResult = await writeReq.WriteAsync(_socket, buffer);
+                            Interlocked.Increment(ref LibuvTransportFactory.WriteCount);
 
                             LogWriteInfo(writeResult.Status, writeResult.Error);
 

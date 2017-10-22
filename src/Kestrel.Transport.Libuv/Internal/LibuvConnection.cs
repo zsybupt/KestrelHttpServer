@@ -6,6 +6,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Protocols;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
@@ -122,6 +123,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
 
         private void OnRead(UvStreamHandle handle, int status)
         {
+            Interlocked.Increment(ref LibuvTransportFactory.ReadCount);
+
             if (status == 0)
             {
                 // EAGAIN/EWOULDBLOCK so just return the buffer.

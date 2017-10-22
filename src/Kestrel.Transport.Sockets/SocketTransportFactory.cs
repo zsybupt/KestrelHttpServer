@@ -11,6 +11,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
 {
     public sealed class SocketTransportFactory : ITransportFactory
     {
+        public static long WriteCount;
+        public static long ReadCount;
+
         private readonly SocketsTrace _trace;
 
         public SocketTransportFactory(

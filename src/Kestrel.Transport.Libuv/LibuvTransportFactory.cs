@@ -12,6 +12,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv
 {
     public class LibuvTransportFactory : ITransportFactory
     {
+        public static long WriteCount;
+        public static long ReadCount;
+
         private readonly LibuvTransportContext _baseTransportContext;
 
         public LibuvTransportFactory(
