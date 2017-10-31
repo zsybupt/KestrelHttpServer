@@ -32,6 +32,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
         private readonly SocketAwaitable _receiveAwaitable;
         private readonly SocketAwaitable _sendAwaitable;
 
+        private bool _skipCompletionPortOnSuccess;
         private volatile bool _aborted;
 
         internal SocketConnection(Socket socket, PipeFactory pipeFactory, ISocketsTrace trace)
@@ -69,6 +70,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
             try
             {
                 connectionHandler.OnConnection(this);
+
+                try
+                {
+                    _skipCompletionPortOnSuccess = SetFileCompletionNotificationModes(_socket.Handle,
+                        FileCompletionNotificationModes.SkipCompletionPortOnSuccess | FileCompletionNotificationModes.SkipSetEventOnHandle);
+                }
+                catch
+                {
+                }
 
                 // Spawn send and receive logic
                 Task receiveTask = DoReceive();
@@ -279,17 +289,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                     overlapped,
                     IntPtr.Zero);
 
+                errno = errno == SocketError.Success ? SocketError.Success : (SocketError)Marshal.GetLastWin32Error();
 
-                if (errno != SocketError.Success)
+                if (errno != SocketError.IOPending && (_skipCompletionPortOnSuccess || errno != SocketError.Success))
                 {
-                    errno = (SocketError)Marshal.GetLastWin32Error();
-
-
-                    if (errno != SocketError.IOPending && errno != SocketError.Success)
-                    {
-                        _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
-                        _receiveAwaitable.Complete(bytesTransferred, errno);
-                    }
+                    _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
+                    _receiveAwaitable.Complete(bytesTransferred, errno);
                 }
             }
 
@@ -331,15 +336,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                 overlapped,
                 IntPtr.Zero);
 
-            if (errno != SocketError.Success)
-            {
-                errno = (SocketError)Marshal.GetLastWin32Error();
+            errno = errno == SocketError.Success ? SocketError.Success : (SocketError)Marshal.GetLastWin32Error();
 
-                if (errno != SocketError.IOPending && errno != SocketError.Success)
-                {
-                    _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
-                    _sendAwaitable.Complete(bytesTransferred, errno);
-                }
+            if (errno != SocketError.IOPending && (_skipCompletionPortOnSuccess || errno != SocketError.Success))
+            {
+                _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
+                _sendAwaitable.Complete(bytesTransferred, errno);
             }
 
             return _sendAwaitable;
@@ -367,15 +369,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                     overlapped,
                     IntPtr.Zero);
 
-                if (errno != SocketError.Success)
-                {
-                    errno = (SocketError)Marshal.GetLastWin32Error();
+                errno = errno == SocketError.Success ? SocketError.Success : (SocketError)Marshal.GetLastWin32Error();
 
-                    if (errno != SocketError.IOPending && errno != SocketError.Success)
-                    {
-                        _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
-                        _sendAwaitable.Complete(bytesTransferred, errno);
-                    }
+                if (errno != SocketError.IOPending && (_skipCompletionPortOnSuccess || errno != SocketError.Success))
+                {
+                    _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
+                    _sendAwaitable.Complete(bytesTransferred, errno);
                 }
             }
 
@@ -497,11 +496,24 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
             bool wait,
             out SocketFlags socketFlags);
 
+        [DllImport("kernel32.dll")]
+        private static unsafe extern bool SetFileCompletionNotificationModes(
+            IntPtr handle,
+            FileCompletionNotificationModes flags);
+
         [StructLayout(LayoutKind.Sequential)]
         internal struct WSABuffer
         {
             internal int Length; // Length of Buffer
             internal IntPtr Pointer;// Pointer to Buffer
+        }
+
+        [Flags]
+        internal enum FileCompletionNotificationModes : byte
+        {
+            None = 0,
+            SkipCompletionPortOnSuccess = 1,
+            SkipSetEventOnHandle = 2
         }
 
         private class UnownedSocketHandle : SafeHandle
