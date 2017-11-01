@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
@@ -23,30 +22,36 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
     {
         private const int MinAllocBufferSize = 2048;
 
+        private static readonly Thread _thread;
+        private static readonly IntPtr _completionPort;
+
         private readonly Socket _socket;
         private readonly ISocketsTrace _trace;
 
-        private readonly ThreadPoolBoundHandle _threadPoolBoundHandle;
-        private readonly PreAllocatedOverlapped _receiveOverlapped;
-        private readonly PreAllocatedOverlapped _sendOverlapped;
-        private readonly SocketAwaitable _receiveAwaitable;
-        private readonly SocketAwaitable _sendAwaitable;
+        private readonly SocketAwaitable _receiveAwaitable = new SocketAwaitable();
+        private readonly SocketAwaitable _sendAwaitable = new SocketAwaitable();
 
+        private IntPtr _packedReceiveOverlapped;
+        private IntPtr _packedSendOverlapped;
         private bool _skipCompletionPortOnSuccess;
         private volatile bool _aborted;
 
-        internal SocketConnection(Socket socket, PipeFactory pipeFactory, ISocketsTrace trace)
+        static SocketConnection()
+        {
+            _completionPort = CreateIoCompletionPort((IntPtr)(-1), IntPtr.Zero, 0, 0);
+            _thread = new Thread(ThreadStart);
+            _thread.IsBackground = true;
+            _thread.Name = nameof(SocketConnection);
+            _thread.Start();
+        }
+
+        internal unsafe SocketConnection(Socket socket, PipeFactory pipeFactory, ISocketsTrace trace)
         {
             Debug.Assert(socket != null);
             Debug.Assert(pipeFactory != null);
             Debug.Assert(trace != null);
 
             _socket = socket;
-            _receiveAwaitable = new SocketAwaitable();
-            _sendAwaitable = new SocketAwaitable();
-            _threadPoolBoundHandle = ThreadPoolBoundHandle.BindHandle(new UnownedSocketHandle(socket));
-            _receiveOverlapped = new PreAllocatedOverlapped(_receiveCallback, state: this, pinData: null);
-            _sendOverlapped = new PreAllocatedOverlapped(_sendCallback, state: this, pinData: null);
 
             PipeFactory = pipeFactory;
             _trace = trace;
@@ -67,9 +72,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
 
         public async Task StartAsync(IConnectionHandler connectionHandler)
         {
+            AllocateNativeOverlapped();
+
             try
             {
                 connectionHandler.OnConnection(this);
+
+                CreateIoCompletionPort(_socket.Handle, _completionPort, (uint)_socket.Handle, 0);
 
                 try
                 {
@@ -99,14 +108,45 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
 
                 // Dispose the socket(should noop if already called)
                 _socket.Dispose();
-                _threadPoolBoundHandle.Dispose();
-                _receiveOverlapped.Dispose();
-                _sendOverlapped.Dispose();
+                FreeNativeOverlapped();
             }
             catch (Exception ex)
             {
                 _trace.LogError(0, ex, $"Unexpected exception in {nameof(SocketConnection)}.{nameof(StartAsync)}.");
             }
+            finally
+            {
+                FreeNativeOverlapped();
+            }
+        }
+
+        private unsafe void AllocateNativeOverlapped()
+        {
+            var receiveOverlapped = new Overlapped
+            {
+                AsyncResult = new CallbackAsyncResult
+                {
+                    Callback = (bytesTransferred, nativeOverlappped, state) => ((SocketConnection)state).ReceiveCompletionCallback(bytesTransferred, nativeOverlappped),
+                    AsyncState = this
+                }
+            };
+            var sendOverlapped = new Overlapped
+            {
+                AsyncResult = new CallbackAsyncResult
+                {
+                    Callback = (bytesTransferred, nativeOverlappped, state) => ((SocketConnection)state).SendCompletionCallback(bytesTransferred, nativeOverlappped),
+                    AsyncState = this
+                }
+            };
+
+            _packedReceiveOverlapped = (IntPtr)receiveOverlapped.UnsafePack(null, null);
+            _packedSendOverlapped = (IntPtr)sendOverlapped.UnsafePack(null, null);
+        }
+
+        private unsafe void FreeNativeOverlapped()
+        {
+            Overlapped.Free((NativeOverlapped*)_packedReceiveOverlapped);
+            Overlapped.Free((NativeOverlapped*)_packedSendOverlapped);
         }
 
         private async Task DoReceive()
@@ -268,8 +308,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
 
         private unsafe SocketAwaitable ReceiveAsync(Buffer<byte> buffer)
         {
-            var overlapped = _threadPoolBoundHandle.AllocateNativeOverlapped(_receiveOverlapped);
-
             buffer.TryGetArray(out var bufferSegment);
             fixed (byte* bufferPtr = &bufferSegment.Array[bufferSegment.Offset])
             {
@@ -286,14 +324,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                     1,
                     out var bytesTransferred,
                     ref socketFlags,
-                    overlapped,
+                    (NativeOverlapped*)_packedReceiveOverlapped,
                     IntPtr.Zero);
 
                 errno = errno == SocketError.Success ? SocketError.Success : (SocketError)Marshal.GetLastWin32Error();
 
                 if (errno != SocketError.IOPending && (_skipCompletionPortOnSuccess || errno != SocketError.Success))
                 {
-                    _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
                     _receiveAwaitable.Complete(bytesTransferred, errno);
                 }
             }
@@ -325,22 +362,19 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                 i++;
             }
 
-            var overlapped = _threadPoolBoundHandle.AllocateNativeOverlapped(_sendOverlapped);
-
             var errno = WSASend(
                 _socket.Handle,
                 wsaBuffers,
                 bufferCount,
                 out var bytesTransferred,
                 SocketFlags.None,
-                overlapped,
+                (NativeOverlapped*)_packedSendOverlapped,
                 IntPtr.Zero);
 
             errno = errno == SocketError.Success ? SocketError.Success : (SocketError)Marshal.GetLastWin32Error();
 
             if (errno != SocketError.IOPending && (_skipCompletionPortOnSuccess || errno != SocketError.Success))
             {
-                _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
                 _sendAwaitable.Complete(bytesTransferred, errno);
             }
 
@@ -349,8 +383,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
 
         private unsafe SocketAwaitable SendAsync(Buffer<byte> buffer)
         {
-            var overlapped = _threadPoolBoundHandle.AllocateNativeOverlapped(_sendOverlapped);
-
             buffer.TryGetArray(out var bufferSegment);
             fixed (byte* bufferPtr = &bufferSegment.Array[bufferSegment.Offset])
             {
@@ -366,14 +398,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                     1,
                     out var bytesTransferred,
                     SocketFlags.None,
-                    overlapped,
+                    (NativeOverlapped*)_packedSendOverlapped,
                     IntPtr.Zero);
 
                 errno = errno == SocketError.Success ? SocketError.Success : (SocketError)Marshal.GetLastWin32Error();
 
                 if (errno != SocketError.IOPending && (_skipCompletionPortOnSuccess || errno != SocketError.Success))
                 {
-                    _threadPoolBoundHandle.FreeNativeOverlapped(overlapped);
                     _sendAwaitable.Complete(bytesTransferred, errno);
                 }
             }
@@ -381,90 +412,65 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
             return _sendAwaitable;
         }
 
-        private static unsafe readonly IOCompletionCallback _receiveCallback = new IOCompletionCallback(ReceiveCompletionCallback);
-        private static unsafe readonly IOCompletionCallback _sendCallback = new IOCompletionCallback(SendCompletionCallback);
-
-        private static unsafe void ReceiveCompletionCallback(uint errno, uint bytesTransferred, NativeOverlapped* nativeOverlapped)
+        private unsafe void ReceiveCompletionCallback( uint bytesTransferred, IntPtr nativeOverlapped)
         {
-            var socketConnection = (SocketConnection)ThreadPoolBoundHandle.GetNativeOverlappedState(nativeOverlapped);
-
-            var socketError = GetSocketError(socketConnection, nativeOverlapped, errno);
-
-            socketConnection._threadPoolBoundHandle.FreeNativeOverlapped(nativeOverlapped);
-            socketConnection._receiveAwaitable.Complete((int)bytesTransferred, socketError);
+            _receiveAwaitable.Complete((int)bytesTransferred, GetSocketError((NativeOverlapped*)nativeOverlapped));
         }
 
-        private static unsafe void SendCompletionCallback(uint errno, uint bytesTransferred, NativeOverlapped* nativeOverlapped)
+        private unsafe void SendCompletionCallback(uint bytesTransferred, IntPtr nativeOverlapped)
         {
-            var socketConnection = (SocketConnection)ThreadPoolBoundHandle.GetNativeOverlappedState(nativeOverlapped);
-
-            var socketError = GetSocketError(socketConnection, nativeOverlapped, errno);
-
-            socketConnection._threadPoolBoundHandle.FreeNativeOverlapped(nativeOverlapped);
-            socketConnection._sendAwaitable.Complete((int)bytesTransferred, socketError);
+            _sendAwaitable.Complete((int)bytesTransferred, GetSocketError((NativeOverlapped*)nativeOverlapped));
         }
 
-        // https://github.com/dotnet/corefx/blob/a26a684033c0bfcfbde8e55c51b8b03fb7a3bafc/src/System.Net.Sockets/src/System/Net/Sockets/BaseOverlappedAsyncResult.Windows.cs#L61
-        private static unsafe SocketError GetSocketError(SocketConnection connection, NativeOverlapped* nativeOverlapped, uint errno)
+        private unsafe SocketError GetSocketError(NativeOverlapped* nativeOverlapped)
         {
-            // Complete the IO and invoke the user's callback.
-            var socketError = (SocketError)errno;
-
-            if (socketError != SocketError.Success && socketError != SocketError.OperationAborted)
+            if (_aborted)
             {
-                // There are cases where passed errorCode does not reflect the details of the underlined socket error.
-                // "So as of today, the key is the difference between WSAECONNRESET and ConnectionAborted,
-                //  .e.g remote party or network causing the connection reset or something on the local host (e.g. closesocket
-                // or receiving data after shutdown (SD_RECV)).  With Winsock/TCP stack rewrite in longhorn, there may
-                // be other differences as well."
-                if (connection._aborted)
+                return SocketError.OperationAborted;
+            }
+
+            bool success = WSAGetOverlappedResult(
+                _socket.Handle,
+                nativeOverlapped,
+                out _,
+                false,
+                out _);
+
+            if (success)
+            {
+                return SocketError.Success;
+            }
+            else
+            {
+                return (SocketError)Marshal.GetLastWin32Error();
+            }
+        }
+
+        private static unsafe void ThreadStart(object parameter)
+        {
+            while (true)
+            {
+                uint bytesTransferred;
+                NativeOverlapped* nativeOverlapped;
+
+                var result = GetQueuedCompletionStatus(
+                    _completionPort,
+                    out bytesTransferred,
+                    out _,
+                    &nativeOverlapped,
+                    uint.MaxValue);
+
+                var overlapped = Overlapped.Unpack(nativeOverlapped);
+
+                if (result)
                 {
-                    socketError = SocketError.OperationAborted;
+                    var asyncResult = (CallbackAsyncResult)overlapped.AsyncResult;
+                    asyncResult.Callback(bytesTransferred, (IntPtr)nativeOverlapped, asyncResult.AsyncState);
                 }
                 else
                 {
-                    // The async IO completed with a failure.
-                    // Here we need to call WSAGetOverlappedResult() just so GetLastSocketError() will return the correct error.
-                    bool success = WSAGetOverlappedResult(
-                        connection._socket.Handle,
-                        nativeOverlapped,
-                        out _,
-                        false,
-                        out _);
-
-                    if (!success)
-                    {
-                        socketError = (SocketError)Marshal.GetLastWin32Error();
-                    }
-                    else
-                    {
-                        Trace.Assert(false, $"Unexpectedly succeeded. errorCode: '{errno}'");
-                    }
+                    Trace.Assert(false, $"Unexpectedly failed. errorCode: '{Marshal.GetLastWin32Error()}'");
                 }
-            }
-
-            return socketError;
-        }
-
-        private static unsafe SocketError Send(Socket socket, Buffer<byte> buffer)
-        {
-            buffer.TryGetArray(out var bufferSegment);
-            fixed (byte* bufferPtr = &bufferSegment.Array[bufferSegment.Offset])
-            {
-                var wsaBuffer = new WSABuffer
-                {
-                    Length = buffer.Length,
-                    Pointer = (IntPtr)bufferPtr
-                };
-
-                return WSASend(
-                    socket.Handle,
-                    &wsaBuffer,
-                    1,
-                    out _,
-                    SocketFlags.None,
-                    null,
-                    IntPtr.Zero);
             }
         }
 
@@ -497,9 +503,24 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
             out SocketFlags socketFlags);
 
         [DllImport("kernel32.dll")]
-        private static unsafe extern bool SetFileCompletionNotificationModes(
+        private static extern bool SetFileCompletionNotificationModes(
             IntPtr handle,
             FileCompletionNotificationModes flags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr CreateIoCompletionPort(
+            IntPtr fileHandle,
+            IntPtr existingCompletionPort,
+            uint completionKey,
+            uint numberOfConcurrentThreads);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static unsafe extern bool GetQueuedCompletionStatus(
+            IntPtr CompletionPort,
+            out uint lpNumberOfBytes,
+            out UIntPtr lpCompletionKey,
+            NativeOverlapped** lpOverlapped,
+            uint dwMilliseconds);
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct WSABuffer
@@ -514,21 +535,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
             None = 0,
             SkipCompletionPortOnSuccess = 1,
             SkipSetEventOnHandle = 2
-        }
-
-        private class UnownedSocketHandle : SafeHandle
-        {
-            public UnownedSocketHandle(Socket socket)
-                : base(socket.Handle, ownsHandle: false)
-            {
-            }
-
-            public override bool IsInvalid => handle == IntPtr.Zero;
-
-            protected override bool ReleaseHandle()
-            {
-                return true;
-            }
         }
 
         private class SocketAwaitable : ICriticalNotifyCompletion
@@ -574,6 +580,19 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
                 _bytesTransfered = numBytes;
                 Interlocked.Exchange(ref _callback, _callbackCompleted)?.Invoke();
             }
+        }
+
+        private class CallbackAsyncResult : IAsyncResult
+        {
+            public Action<uint, IntPtr, object> Callback { get; set; }
+
+            public object AsyncState { get; set; }
+
+            public WaitHandle AsyncWaitHandle => throw new NotImplementedException();
+
+            public bool CompletedSynchronously => throw new NotImplementedException();
+
+            public bool IsCompleted => throw new NotImplementedException();
         }
     }
 }
