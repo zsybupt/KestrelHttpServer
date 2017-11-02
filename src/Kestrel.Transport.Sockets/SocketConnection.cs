@@ -21,9 +21,10 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
     internal sealed class SocketConnection : TransportConnection
     {
         private const int MinAllocBufferSize = 2048;
+        private const int NumIoThreads = 4;
 
-        private static readonly Thread _thread;
-        private static readonly IntPtr _completionPort;
+        private static readonly IntPtr[] _completionPorts = new IntPtr[NumIoThreads];
+        private static int _nextIoThread;
 
         private readonly Socket _socket;
         private readonly ISocketsTrace _trace;
@@ -31,18 +32,24 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
         private readonly SocketAwaitable _receiveAwaitable = new SocketAwaitable();
         private readonly SocketAwaitable _sendAwaitable = new SocketAwaitable();
 
+        private IntPtr _completionPort;
         private IntPtr _packedReceiveOverlapped;
         private IntPtr _packedSendOverlapped;
+
         private bool _skipCompletionPortOnSuccess;
         private volatile bool _aborted;
 
         static SocketConnection()
         {
-            _completionPort = CreateIoCompletionPort((IntPtr)(-1), IntPtr.Zero, 0, 0);
-            _thread = new Thread(ThreadStart);
-            _thread.IsBackground = true;
-            _thread.Name = nameof(SocketConnection);
-            _thread.Start();
+            for (var i = 0; i < NumIoThreads; i++)
+            {
+                _completionPorts[i] = CreateIoCompletionPort((IntPtr)(-1), IntPtr.Zero, 0, 0);
+
+                var thread = new Thread(ThreadStart);
+                thread.IsBackground = true;
+                thread.Name = nameof(SocketConnection);
+                thread.Start(_completionPorts[i]);
+            }
         }
 
         internal unsafe SocketConnection(Socket socket, PipeFactory pipeFactory, ISocketsTrace trace)
@@ -52,6 +59,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
             Debug.Assert(trace != null);
 
             _socket = socket;
+            _completionPort = _completionPorts[Interlocked.Increment(ref _nextIoThread) % NumIoThreads];
 
             PipeFactory = pipeFactory;
             _trace = trace;
@@ -448,13 +456,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
 
         private static unsafe void ThreadStart(object parameter)
         {
+            var completionPort = (IntPtr)parameter;
+
             while (true)
             {
                 uint bytesTransferred;
                 NativeOverlapped* nativeOverlapped;
 
                 var result = GetQueuedCompletionStatus(
-                    _completionPort,
+                    completionPort,
                     out bytesTransferred,
                     out _,
                     &nativeOverlapped,
