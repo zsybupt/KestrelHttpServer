@@ -26,6 +26,10 @@ namespace Microsoft.AspNetCore.Server.Kestrel
                 // TODO: Load simple config values? Use Config Binder?
                 // This is just for prototype/demostration purposes
                 var addServerHeaderValue = _configuration["AddServerHeader"];
+                if(!string.IsNullOrEmpty(addServerHeaderValue) && bool.TryParse(addServerHeaderValue, out var value))
+                {
+                    options.AddServerHeader = value;
+                }
 
                 var certificateSection = _configuration.GetSection("Certificate");
                 var endpointsSection = _configuration.GetSection("Endpoints");
