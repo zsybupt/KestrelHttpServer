@@ -1,8 +1,7 @@
-﻿<Project>
+<Project>
   <PropertyGroup>
     <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
   </PropertyGroup>
-  <!-- This files is typically managed by automation. Execute 'run.ps1 upgrade deps' to update these variables to the last-known-good versions. -->
   <PropertyGroup Label="Package Versions">
     <BenchmarkDotNetPackageVersion>0.10.9</BenchmarkDotNetPackageVersion>
     <InternalAspNetCoreSdkPackageVersion>2.1.0-preview1-15549</InternalAspNetCoreSdkPackageVersion>
@@ -16,6 +15,7 @@
     <MicrosoftAspNetCoreHttpPackageVersion>2.1.0-preview1-27475</MicrosoftAspNetCoreHttpPackageVersion>
     <MicrosoftAspNetCoreTestingPackageVersion>2.1.0-preview1-27475</MicrosoftAspNetCoreTestingPackageVersion>
     <MicrosoftAspNetCoreWebUtilitiesPackageVersion>2.1.0-preview1-27475</MicrosoftAspNetCoreWebUtilitiesPackageVersion>
+    <MicrosoftExtensionsConfigurationJsonPackageVersion>2.1.0-preview1-27475</MicrosoftExtensionsConfigurationJsonPackageVersion>
     <MicrosoftExtensionsLoggingAbstractionsPackageVersion>2.1.0-preview1-27475</MicrosoftExtensionsLoggingAbstractionsPackageVersion>
     <MicrosoftExtensionsLoggingConsolePackageVersion>2.1.0-preview1-27475</MicrosoftExtensionsLoggingConsolePackageVersion>
     <MicrosoftExtensionsLoggingPackageVersion>2.1.0-preview1-27475</MicrosoftExtensionsLoggingPackageVersion>
