@@ -2,15 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Diagnostics;
-using System.Globalization;
 using System.IO;
-using System.Net;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -39,22 +35,21 @@ namespace ConfigurationSampleApp
         public static Task Main(string[] args)
         {
             var configuration = new ConfigurationBuilder()
-                .AddJsonFile()
+                .AddJsonFile("appsettings.json")
                 .AddEnvironmentVariables()
                 .Build();
 
-            return new WebHostBuilder()
+            var host = new WebHostBuilder()
                 .ConfigureLogging((_, factory) =>
                 {
                     factory.AddConsole();
                 })
-                .UseKestrel(options =>
-                {
-                })
+                .UseKestrel(configuration.GetSection("Kestrel"))
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseStartup<Startup>()
-                .Build()
-                .RunAsync();
+                .Build();
+
+            return host.RunAsync();
         }
     }
 }

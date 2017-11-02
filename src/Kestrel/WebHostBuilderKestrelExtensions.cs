@@ -3,11 +3,13 @@
 
 using System;
 using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Server.Kestrel;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal;
 using Microsoft.AspNetCore.Server.Kestrel.Internal;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -26,6 +28,19 @@ namespace Microsoft.AspNetCore.Hosting
         /// The Microsoft.AspNetCore.Hosting.IWebHostBuilder.
         /// </returns>
         public static IWebHostBuilder UseKestrel(this IWebHostBuilder hostBuilder)
+            => UseKestrel(hostBuilder, configuration: null);
+
+        /// <summary>
+        /// Specify Kestrel as the server to be used by the web host.
+        /// </summary>
+        /// <param name="hostBuilder">
+        /// The Microsoft.AspNetCore.Hosting.IWebHostBuilder to configure.
+        /// </param>
+        /// <param name="configuration">A configuration section to use to read Kestrel configuration</param>
+        /// <returns>
+        /// The Microsoft.AspNetCore.Hosting.IWebHostBuilder.
+        /// </returns>
+        public static IWebHostBuilder UseKestrel(this IWebHostBuilder hostBuilder, IConfiguration configuration)
         {
             return hostBuilder.ConfigureServices(services =>
             {
@@ -33,6 +48,7 @@ namespace Microsoft.AspNetCore.Hosting
                 services.TryAddSingleton<ITransportFactory, SocketTransportFactory>();
 
                 services.AddTransient<IConfigureOptions<KestrelServerOptions>, KestrelServerOptionsSetup>();
+                services.AddTransient<IConfigureOptions<KestrelServerOptions>>(_ => new KestrelServerOptionsConfigureOptions(configuration));
                 services.AddSingleton<IServer, KestrelServer>();
                 services.AddSingleton<IDefaultHttpsProvider, DefaultHttpsProvider>();
             });

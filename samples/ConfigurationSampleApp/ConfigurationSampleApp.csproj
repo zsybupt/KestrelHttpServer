@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="testCert.pfx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Kestrel\Kestrel.csproj" />
     <ProjectReference Include="..\..\src\Kestrel.Https\Kestrel.Https.csproj" />
   </ItemGroup>
