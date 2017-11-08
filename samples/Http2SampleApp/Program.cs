@@ -1,6 +1,8 @@
+using System;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Threading;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
@@ -37,8 +39,7 @@ namespace Http2SampleApp
                     options.Listen(IPAddress.Any, basePort, listenOptions =>
                     {
                         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-                        listenOptions.UseTls("testCert.pfx", "testPassword");
-                        listenOptions.UseConnectionLogging();
+                        listenOptions.UseTls(Path.Combine(AppContext.BaseDirectory, "testCert.pfx"), "testPassword");
                     });
                 })
                 .UseContentRoot(Directory.GetCurrentDirectory())

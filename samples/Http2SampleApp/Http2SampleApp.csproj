@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <Content Include="../../test/shared/TestCertificates/testCert.pfx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="scripts/container-start.sh" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

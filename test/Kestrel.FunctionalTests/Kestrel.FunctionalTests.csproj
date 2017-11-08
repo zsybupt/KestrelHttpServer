@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Microsoft.AspNetCore.Server.Kestrel.FunctionalTests</AssemblyName>
+    <RootNamespace>Microsoft.AspNetCore.Server.Kestrel.FunctionalTests</RootNamespace>
+    <TargetFrameworks>netcoreapp2.0</TargetFrameworks>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <SignAssembly>false</SignAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Docker.DotNet" Version="$(DockerDotNetPackageVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.Testing" Version="$(MicrosoftAspNetCoreTestingPackageVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Testing" Version="$(MicrosoftExtensionsLoggingTestingPackageVersion)" />
+  </ItemGroup>
+
+</Project>
