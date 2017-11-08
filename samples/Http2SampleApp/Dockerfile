@@ -1,14 +1,23 @@
 FROM microsoft/aspnetcore:2.0.0-stretch
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-ARG CONFIGURATION=Debug
+ARG SSH_KEY
 
 WORKDIR /app
 
-COPY ./bin/${CONFIGURATION}/netcoreapp2.0/publish/ /app
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libssl-dev \
+    openssh-server && \
+    rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT [ "/usr/bin/dotnet", "/app/Http2SampleApp.dll" ]
+# Configure OpenSSH
+COPY ./scripts/configure-sshd.sh /app
+RUN mkdir /var/run/sshd && \
+    SSH_KEY="${SSH_KEY}" /app/configure-sshd.sh
+
+ARG CONFIGURATION=Debug
+
+COPY ./bin/${CONFIGURATION}/netcoreapp2.0/publish/ /app
+COPY ./scripts/container-start.sh /app
+
+ENTRYPOINT [ "/app/container-start.sh" ]
