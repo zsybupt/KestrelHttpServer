@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <Compile Include="..\shared\**\*.cs" />
-    <Compile Include="..\Kestrel.FunctionalTests\**\*.cs" />
+    <Compile Include="..\Kestrel.Transport.FunctionalTests\**\*.cs" />
     <Content Include="..\shared\TestCertificates\*.pfx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
