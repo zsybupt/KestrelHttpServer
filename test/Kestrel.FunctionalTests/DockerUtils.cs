@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -10,7 +12,20 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
 {
     internal static class DockerUtils
     {
-        internal static DockerClient GetLocalClient(ILoggerFactory loggerFactory)
+        public static bool HasLocalDocker => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ?
+            File.Exists(@"\\.\pipe\docker_engine") :
+            File.Exists("/var/run/docker.sock");
+
+        public static IDictionary<string, string> GetTestLabels(string runName)
+        {
+            return new Dictionary<string, string>()
+            {
+                { "net.asp.test", "1" },
+                { "net.asp.test.run", runName },
+            };
+        }
+
+        public static DockerClient GetLocalClient(ILoggerFactory loggerFactory)
         {
             var url = GetLocalDockerUrl();
             return new DockerClientConfiguration(url, new LoggingCredentials(loggerFactory.CreateLogger<DockerClient>()))
@@ -25,7 +40,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             }
             else
             {
-                // Even on macOS, they proxy the VM's socket to a local socket.
+                // Even on macOS, they proxy the VM's socket to a local unix socket.
                 return new Uri("unix://var/run/docker.sock");
             }
         }
@@ -61,9 +76,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
 
             protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
-                _logger.LogInformation("-> {Method} {Url}", request.Method, request.RequestUri);
+                _logger.LogTrace("-> {Method} {Url}", request.Method, request.RequestUri);
                 var resp = await base.SendAsync(request, cancellationToken);
-                _logger.LogInformation("<- {StatusCode} {Url}", resp.StatusCode, request.RequestUri);
+                _logger.LogTrace("<- {StatusCode} {Url}", resp.StatusCode, request.RequestUri);
                 return resp;
             }
         }
