@@ -48,12 +48,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             var success = true;
             foreach (var failure in results.Where(r => !r.Success))
             {
-                if (expectedFailuresSet.Contains(failure.TestCase))
+                if (expectedFailuresSet.Remove(failure.TestCase))
                 {
                     logger.LogWarning("Suppressed Failure: {TestCase} - {Error}", failure.TestCase, failure.Error);
                 }
                 else
                 {
+                    success = false;
                     logger.LogError("Failure: {TestCase} - {Error}", failure.TestCase, failure.Error);
                     failures.AppendLine($"  * {failure.TestCase} (duration: {failure.Duration.TotalSeconds:0.00}s)");
                     foreach (var line in failure.Error.Split('\n')) // Because the test runs in docker, it's always '\n'
@@ -64,6 +65,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             }
 
             Assert.True(success, $"h2spec Failures: {Environment.NewLine}{failures.ToString()}");
+
+            // Can't do this right now, we have flaky tests :(
+            //Assert.True(expectedFailuresSet.Count == 0, $"Unused suppressions: {Environment.NewLine}{FormatSuppressions(expectedFailuresSet)}");
         }
+
+        private static string FormatSuppressions(HashSet<string> expectedFailuresSet) => string.Join(Environment.NewLine, expectedFailuresSet.Select(f => $"* {f}"));
     }
 }

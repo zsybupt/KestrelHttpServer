@@ -87,7 +87,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                         var results = H2SpecResult.LoadResults(Path.Combine(outputDir.FullName, "h2spec.junit.xml")).ToList();
                         H2SpecResult.AssertSuccessful(results, logger,
                             // Unfortunately the dotted-number names are not unique. The description also has to be present to actually identify the test :(
-                            //"http2/6.5.3 Sends multiple values of SETTINGS_INITIAL_WINDOW_SIZE",
+                            "generic/3.1 Sends a DATA frame with padding",
+                            "http2/6.5.3 Sends multiple values of SETTINGS_INITIAL_WINDOW_SIZE",
                             "http2/6.9.1 Sends SETTINGS frame to set the initial window size to 1 and sends HEADERS frame",
                             "http2/6.9.1 Sends multiple WINDOW_UPDATE frames increasing the flow control window to above 2^31-1",
                             "http2/6.9.1 Sends multiple WINDOW_UPDATE frames increasing the flow control window to above 2^31-1 on a stream",
