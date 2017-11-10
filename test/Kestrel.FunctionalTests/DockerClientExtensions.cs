@@ -30,19 +30,34 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             return network;
         }
 
-        public static async Task<CreateContainerResponse> RunContainerAsync(this IContainerOperations containerOperations, string name, CreateContainerParameters parameters, ILogger logger, CancellationToken cancellationToken)
+        public static async Task<CreateContainerResponse> RunContainerAsync(this DockerClient docker, string name, CreateContainerParameters parameters, ILogger logger, CancellationToken cancellationToken)
         {
             using (logger.BeginScope("Running container {ContainerName} using image {ContainerImage}", name, parameters.Image))
             {
                 parameters.Name = name;
 
                 logger.LogInformation("Creating container {ContainerName}", parameters.Name);
-                var containerResponse = await containerOperations.CreateContainerAsync(parameters, cancellationToken);
+                CreateContainerResponse containerResponse;
+                try
+                {
+                    containerResponse = await docker.Containers.CreateContainerAsync(parameters, cancellationToken);
+                }
+                catch (DockerContainerNotFoundException)
+                {
+                    // Try pulling it from the registry and retry
+                    await docker.Images.CreateImageAsync(
+                        parameters: new ImagesCreateParameters() { FromImage = parameters.Image },
+                        authConfig: new AuthConfig(),
+                        progress: new LoggerProgress(logger, $"docker pull {parameters.Name}"),
+                        cancellationToken);
+
+                    containerResponse = await docker.Containers.CreateContainerAsync(parameters, cancellationToken);
+                }
                 DumpWarnings(containerResponse.Warnings, logger, cancellationToken);
                 logger.LogInformation("Created container {ContainerName}", parameters.Name);
 
                 logger.LogInformation("Starting container {ContainerName}", parameters.Name);
-                Assert.True(await containerOperations.StartContainerAsync(parameters.Name, new ContainerStartParameters(), cancellationToken));
+                Assert.True(await docker.Containers.StartContainerAsync(parameters.Name, new ContainerStartParameters(), cancellationToken));
                 logger.LogInformation("Started container {ContainerName}", parameters.Name);
 
                 return containerResponse;
@@ -95,7 +110,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             {
                 if (ex is DockerApiException apiex)
                 {
-                    logger.LogError(ex, "Error dumping logs for '{ContainerName}': {StatusCode} {Message}", apiex.StatusCode, apiex.Message, containerName);
+                    logger.LogError(ex, "Error dumping logs for '{ContainerName}': {StatusCode} {Message}", containerName, (int)apiex.StatusCode, apiex.Message);
                 }
                 else
                 {

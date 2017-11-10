@@ -76,9 +76,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
 
             protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
-                _logger.LogTrace("-> {Method} {Url}", request.Method, request.RequestUri);
+                _logger.LogInformation("-> {Method} {Url}", request.Method, request.RequestUri);
                 var resp = await base.SendAsync(request, cancellationToken);
-                _logger.LogTrace("<- {StatusCode} {Url}", resp.StatusCode, request.RequestUri);
+                _logger.LogInformation("<- {StatusCode} {Url}", resp.StatusCode, request.RequestUri);
                 return resp;
             }
         }
