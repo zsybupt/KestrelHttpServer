@@ -135,55 +135,64 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
         [Fact]
         public async Task ConnectionCountingReturnsToZero()
         {
-            const int count = 100;
-            var opened = 0;
-            var closed = 0;
-            var openedTcs = new TaskCompletionSource<object>();
-            var closedTcs = new TaskCompletionSource<object>();
-
-            var counter = new EventRaisingResourceCounter(ResourceCounter.Quota(uint.MaxValue));
-
-            counter.OnLock += (o, e) =>
+            for (var numRuns = 0;; numRuns++)
             {
-                if (e && Interlocked.Increment(ref opened) >= count)
-                {
-                    openedTcs.TrySetResult(null);
-                }
-            };
+                const int count = 100;
+                var opened = 0;
+                var closed = 0;
+                var openedTcs = new TaskCompletionSource<object>();
+                var closedTcs = new TaskCompletionSource<object>();
 
-            counter.OnRelease += (o, e) =>
-            {
-                if (Interlocked.Increment(ref closed) >= count)
-                {
-                    closedTcs.TrySetResult(null);
-                }
-            };
+                var counter = new EventRaisingResourceCounter(ResourceCounter.Quota(uint.MaxValue));
 
-            using (var server = CreateServerWithMaxConnections(_ => Task.CompletedTask, counter))
-            {
-                // open a bunch of connections in parallel
-                Parallel.For(0, count, async i =>
+                counter.OnLock += (o, e) =>
                 {
-                    try
+                    if (e && Interlocked.Increment(ref opened) >= count)
                     {
-                        using (var connection = server.CreateConnection())
+                        openedTcs.TrySetResult(null);
+                    }
+                };
+
+                counter.OnRelease += (o, e) =>
+                {
+                    if (Interlocked.Increment(ref closed) >= count)
+                    {
+                        closedTcs.TrySetResult(null);
+                    }
+                };
+
+                using (var server = CreateServerWithMaxConnections(_ => Task.CompletedTask, counter))
+                {
+                    if (!server.Started)
+                    {
+                        Console.WriteLine("The server failed to start after {0} tries!", numRuns);
+                        Console.ReadLine();
+                    }
+
+                    // open a bunch of connections in parallel
+                    Parallel.For(0, count, async i =>
+                    {
+                        try
                         {
-                            await connection.SendEmptyGetAsKeepAlive();
-                            await connection.Receive("HTTP/1.1 200");
+                            using (var connection = server.CreateConnection())
+                            {
+                                await connection.SendEmptyGetAsKeepAlive();
+                                await connection.Receive("HTTP/1.1 200");
+                            }
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        openedTcs.TrySetException(ex);
-                    }
-                });
+                        catch (Exception ex)
+                        {
+                            openedTcs.TrySetException(ex);
+                        }
+                    });
 
-                // wait until resource counter has called lock for each connection
-                await openedTcs.Task.TimeoutAfter(TimeSpan.FromSeconds(120));
-                // wait until resource counter has released all normal connections
-                await closedTcs.Task.TimeoutAfter(TimeSpan.FromSeconds(120));
-                Assert.Equal(count, opened);
-                Assert.Equal(count, closed);
+                    // wait until resource counter has called lock for each connection
+                    await openedTcs.Task.TimeoutAfter(TimeSpan.FromSeconds(120));
+                    // wait until resource counter has released all normal connections
+                    await closedTcs.Task.TimeoutAfter(TimeSpan.FromSeconds(120));
+                    Assert.Equal(count, opened);
+                    Assert.Equal(count, closed);
+                }
             }
         }
 

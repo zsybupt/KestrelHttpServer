@@ -74,9 +74,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                 .UseSetting(WebHostDefaults.ApplicationKey, typeof(TestServer).GetTypeInfo().Assembly.FullName)
                 .Build();
 
-            _host.Start();
+            var startTask = Task.Run(() => _host.Start());
+            var completedIndex = Task.WaitAny(startTask, Task.Delay(5000));
+            if (completedIndex == 0)
+            {
+                Started = true;
+            }
         }
 
+        public bool Started { get; }
         public IPEndPoint EndPoint => _listenOptions.IPEndPoint;
         public int Port => _listenOptions.IPEndPoint.Port;
         public AddressFamily AddressFamily => _listenOptions.IPEndPoint.AddressFamily;
