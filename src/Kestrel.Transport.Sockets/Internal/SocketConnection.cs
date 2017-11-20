@@ -61,18 +61,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
             {
                 connectionHandler.OnConnection(this);
 
+
+                Console.WriteLine("***** Adding OnWriteCompleted callback!");
+                Output.OnWriterCompleted((ex, state) => ((SocketConnection)state).OnWriterCompleted(ex), this);
+
                 // Spawn send and receive logic
                 Task receiveTask = DoReceive();
                 Task sendTask = DoSend();
-
-                // If the sending task completes then close the receive
-                // We don't need to do this in the other direction because the kestrel
-                // will trigger the output closing once the input is complete.
-                if (await Task.WhenAny(receiveTask, sendTask) == sendTask)
-                {
-                    // Tell the reader it's being aborted
-                    _socket.Dispose();
-                }
 
                 // Now wait for both to complete
                 await receiveTask;
@@ -202,7 +197,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                     {
                         if (!buffer.IsEmpty)
                         {
+                            Console.WriteLine("| Starting SendAsync");
                             await _sender.SendAsync(buffer);
+                            Console.WriteLine("| Stopping SendAsync");
                         }
                         else if (result.IsCompleted)
                         {
@@ -241,6 +238,18 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                 _aborted = true;
                 _trace.ConnectionWriteFin(ConnectionId);
                 _socket.Shutdown(SocketShutdown.Both);
+            }
+        }
+
+        private void OnWriterCompleted(Exception ex)
+        {
+            Console.WriteLine("***** OnWriteCompleted!");
+
+            // Cut off writes if the writer is completed with an error. If a write request is pending, this will cancel it.
+            if (ex != null)
+            {
+                Console.WriteLine("***** OnWriterCompleted (disposing socket)! {0}", ex);
+                _socket.Dispose();
             }
         }
     }

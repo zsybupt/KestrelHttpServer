@@ -39,6 +39,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             _keepAliveTicks = ServerOptions.Limits.KeepAliveTimeout.Ticks;
             _requestHeadersTimeoutTicks = ServerOptions.Limits.RequestHeadersTimeout.Ticks;
 
+
+            Console.WriteLine("_context.Application.Input == _context.Transport.Output? {0}, {1}, {2}", _context.Application.Input == _context.Transport.Output,_context.Application.Input.GetHashCode(), _context.Transport.Output.GetHashCode());
+
             Output = new Http1OutputProducer(_context.Application.Input, _context.Transport.Output, _context.ConnectionId, _context.ServiceContext.Log, _context.TimeoutControl);
         }
 

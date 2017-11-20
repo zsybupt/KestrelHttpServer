@@ -165,6 +165,16 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Adapter.Internal
             }
         }
 
+
+        private void OnWriterCompleted(Exception ex)
+        {
+            // Cut off writes if the writer is completed with an error. If a write request is pending, this will cancel it.
+            if (ex != null)
+            {
+                _transport.Output.Complete(ex);
+            }
+        }
+
         public void Dispose()
         {
         }

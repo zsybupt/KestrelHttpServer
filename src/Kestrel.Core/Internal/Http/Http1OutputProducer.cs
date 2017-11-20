@@ -153,8 +153,16 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 _log.ConnectionDisconnect(_connectionId);
                 _completed = true;
 
+                Console.WriteLine("**** Aborting cancelling pending read");
                 _outputPipeReader.CancelPendingRead();
+                Console.WriteLine("***** Adding OnWriteCompleted callback again!");
+                _outputPipeReader.OnWriterCompleted((ex, state) => Console.WriteLine("***** OnWriteCompleted Before!"), null);
+                Console.WriteLine("***** Completing pipe writer with error: {0}", error);
                 _pipeWriter.Complete(error);
+                _outputPipeReader.OnWriterCompleted((ex, state) => Console.WriteLine("***** OnWriteCompleted After!"), null);
+                Console.WriteLine("***** Completed pipe writer", error);
+
+                Console.WriteLine("_pipeWriter == _outputPipeReader? {0}, {1}, {2}", _pipeWriter == _outputPipeReader, _pipeWriter.GetHashCode(), _outputPipeReader.GetHashCode());
             }
         }
 

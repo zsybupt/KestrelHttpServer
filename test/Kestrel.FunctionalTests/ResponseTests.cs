@@ -2475,7 +2475,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                     {
                         Limits =
                         {
-                            MinResponseDataRate = new MinDataRate(bytesPerSecond: double.MaxValue, gracePeriod: TimeSpan.FromSeconds(2))
+                            // The grace period causes this test take a minimum of 10 seconds, but it increases the likelihood
+                            // the backpressure has completely stopped the write loop prior to the timeout.
+                            MinResponseDataRate = new MinDataRate(bytesPerSecond: double.MaxValue, gracePeriod: TimeSpan.FromSeconds(10)),
+                            // Don't allow the RequestHeadersTimeout to affect the IsConnected() check.
+                            RequestHeadersTimeout = TimeSpan.FromSeconds(240)
                         }
                     }
                 };
@@ -2511,10 +2515,45 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
 
                         var sw = Stopwatch.StartNew();
                         logger.LogInformation("Waiting for connection to abort.");
+                        Console.WriteLine("***** waiting for message");
                         Assert.True(messageLogged.Wait(TimeSpan.FromSeconds(120)), "The expected message was not logged within the timeout period.");
+                        Console.WriteLine("***** message logged");
                         Assert.True(requestAborted.Wait(TimeSpan.FromSeconds(120)), "The request was not aborted within the timeout period.");
+                        Console.WriteLine("***** request aborted");
                         sw.Stop();
                         logger.LogInformation("Connection was aborted after {totalMilliseconds}ms.", sw.ElapsedMilliseconds);
+
+                        var isConnectedBuffer = new[] { (byte)'A' };
+                        bool IsConnected()
+                        {
+                            try
+                            {
+                                // Normally you would attempt to read to see if the socket is still connected,
+                                // but we don't want to relieve back pressure yet.
+                                socket.Send(isConnectedBuffer);
+                            }
+                            catch (SocketException)
+                            {
+                                return false;
+                            }
+
+                            return true;
+                        }
+
+                        for (var i = 0;; i++)
+                        {
+                            if (!IsConnected())
+                            {
+                                break;
+                            }
+
+                            if (i > 1200)
+                            {
+                                Assert.True(false, "Server did not close connection within 120 seconds of timeout.");
+                            }
+
+                            Thread.Sleep(100);
+                        }
 
                         var totalReceived = 0;
                         var received = 0;
@@ -2527,7 +2566,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                             {
                                 received = socket.Receive(buffer);
                                 totalReceived += received;
-                            } while (received > 0 && totalReceived < responseSize);
+                            } while (received > 0);
                         }
                         catch (SocketException) { }
                         catch (IOException)
@@ -2537,7 +2576,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
 
                         // Since we expect writes to be cut off by the rate control, we should never see the entire response
                         logger.LogInformation("Received {totalReceived} bytes", totalReceived);
-                        Assert.NotEqual(responseSize, totalReceived);
+                        Assert.True(responseSize > totalReceived);
                     }
                 }
             }
