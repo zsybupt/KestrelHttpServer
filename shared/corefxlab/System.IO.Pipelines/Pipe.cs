@@ -62,7 +62,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.System.IO.Pipelines
 
         private bool _disposed;
 
-        internal long Length => _length;
+        public long Length => _length;
 
         /// <summary>
         /// Initializes the <see cref="Pipe"/> with the specifed <see cref="IBufferPool"/>.
@@ -397,14 +397,21 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.System.IO.Pipelines
             }
 
             Action awaitable;
-            PipeCompletionCallbacks completionCallbacks;
+            PipeCompletionCallbacks completionCallbacks = null;
             bool readerCompleted;
 
             lock (_sync)
             {
-                completionCallbacks = _writerCompletion.TryComplete(exception);
                 awaitable = _readerAwaitable.Complete();
                 readerCompleted = _readerCompletion.IsCompleted;
+
+                // Wait for the reader to complete before firing OnWriterCompleted callbacks unless the connection is
+                // being aborted with an error. This is to give the writer the oppertunity to time out connections
+                // it has already finished writing to by calling Complete again with an exception.
+                if (exception != null || readerCompleted)
+                {
+                    completionCallbacks = _writerCompletion.TryComplete(exception);
+                }
             }
 
             if (completionCallbacks != null)
@@ -515,20 +522,33 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.System.IO.Pipelines
                 PipelinesThrowHelper.ThrowInvalidOperationException(ExceptionResource.CompleteReaderActiveReader, _readingState.Location);
             }
 
-            PipeCompletionCallbacks completionCallbacks;
+            PipeCompletionCallbacks readerCompletionCallbacks;
+            PipeCompletionCallbacks writerCompletionCallbacks = null;
             Action awaitable;
             bool writerCompleted;
 
             lock (_sync)
             {
-                completionCallbacks = _readerCompletion.TryComplete(exception);
+                readerCompletionCallbacks = _readerCompletion.TryComplete(exception);
                 awaitable = _writerAwaitable.Complete();
                 writerCompleted = _writerCompletion.IsCompleted;
+
+                if (writerCompleted)
+                {
+                    // If IPipeWriter.Complete was called with an exception, _writerCompletion will have already been
+                    // completed.
+                    writerCompletionCallbacks = _writerCompletion.TryComplete();
+                }
             }
 
-            if (completionCallbacks != null)
+            if (readerCompletionCallbacks != null)
             {
-                TrySchedule(_writerScheduler, _invokeCompletionCallbacks, completionCallbacks);
+                TrySchedule(_writerScheduler, _invokeCompletionCallbacks, readerCompletionCallbacks);
+            }
+
+            if (writerCompletionCallbacks != null)
+            {
+                TrySchedule(_readerScheduler, _invokeCompletionCallbacks, writerCompletionCallbacks);
             }
 
             TrySchedule(_writerScheduler, awaitable);

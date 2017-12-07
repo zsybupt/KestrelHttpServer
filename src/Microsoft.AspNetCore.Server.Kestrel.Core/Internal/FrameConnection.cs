@@ -36,7 +36,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
         private long _readTimingBytesRead;
 
         private object _writeTimingLock = new object();
-        private int _writeTimingWrites;
+        private bool _writeTimingEnabled;
         private long _writeTimingTimeoutTimestamp;
 
         private Task _lifetimeTask;
@@ -347,7 +347,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
 
             lock (_writeTimingLock)
             {
-                if (_writeTimingWrites > 0 && timestamp > _writeTimingTimeoutTimestamp && !Debugger.IsAttached)
+                if (_writeTimingEnabled && timestamp > _writeTimingTimeoutTimestamp && !Debugger.IsAttached)
                 {
                     TimedOut = true;
                     Log.ResponseMininumDataRateNotSatisfied(_frame.ConnectionIdFeature, _frame.TraceIdentifier);
@@ -418,12 +418,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
             }
         }
 
-        public void BytesRead(int count)
+        public void BytesRead(long count)
         {
             Interlocked.Add(ref _readTimingBytesRead, count);
         }
 
-        public void StartTimingWrite(int size)
+        public void StartTimingWrite(long size)
         {
             lock (_writeTimingLock)
             {
@@ -435,14 +435,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
                         minResponseDataRate.GracePeriod.Ticks,
                         TimeSpan.FromSeconds(size / minResponseDataRate.BytesPerSecond).Ticks);
 
-                    if (_writeTimingWrites == 0)
-                    {
-                        // Add Heartbeat.Interval since this can be called right before the next heartbeat.
-                        _writeTimingTimeoutTimestamp = _lastTimestamp + Heartbeat.Interval.Ticks;
-                    }
-
-                    _writeTimingTimeoutTimestamp += timeoutTicks;
-                    _writeTimingWrites++;
+                    // Add Heartbeat.Interval since this can be called right before the next heartbeat.
+                    _writeTimingTimeoutTimestamp = _lastTimestamp + Heartbeat.Interval.Ticks + timeoutTicks;
+                    _writeTimingEnabled = true;
                 }
             }
         }
@@ -451,7 +446,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
         {
             lock (_writeTimingLock)
             {
-                _writeTimingWrites--;
+                _writeTimingEnabled = false;
             }
         }
     }

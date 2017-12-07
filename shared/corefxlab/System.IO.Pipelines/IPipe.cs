@@ -14,6 +14,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Internal.System.IO.Pipelines
     {
         IPipeReader Reader { get; }
         IPipeWriter Writer { get; }
+
+        /// <summary>
+        /// Number of bytes written that have not yet been consuned.
+        /// </summary>
+        long Length { get; }
         void Reset();
     }
 }

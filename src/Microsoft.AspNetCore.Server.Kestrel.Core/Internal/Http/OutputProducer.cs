@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using Microsoft.AspNetCore.Server.Kestrel.Internal.System.IO.Pipelines;
+using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 {
@@ -27,9 +28,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         // https://github.com/dotnet/corefxlab/issues/1334
         // Pipelines don't support multiple awaiters on flush
         // this is temporary until it does
-        private TaskCompletionSource<object> _flushTcs;
+        //private TaskCompletionSource<object> _flushTcs;
         private readonly object _flushLock = new object();
-        private Action _flushCompleted;
+
+        private Task _lastFlushTask = Task.CompletedTask;
+        //private Action _flushCompleted;
 
         public OutputProducer(
             IPipe pipe,
@@ -41,7 +44,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             _connectionId = connectionId;
             _timeoutControl = timeoutControl;
             _log = log;
-            _flushCompleted = OnFlushCompleted;
         }
 
         public Task WriteAsync(ArraySegment<byte> buffer, bool chunk = false, CancellationToken cancellationToken = default(CancellationToken))
@@ -101,8 +103,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 _log.ConnectionDisconnect(_connectionId);
                 _completed = true;
 
+                // Ensure Complete is called with an exception so the IPipeReader.OnWriterCompleted callback gets
+                // fired immediately.
+                error = error ?? new ConnectionAbortedException();
+
                 _pipe.Reader.CancelPendingRead();
                 _pipe.Writer.Complete(error);
+                _timeoutControl.StartTimingWrite(_pipe.Length);
             }
         }
 
@@ -161,26 +168,24 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             // Since the flush awaitable doesn't currently support multiple awaiters
             // we need to use a task to track the callbacks.
             // All awaiters get the same task
+            Task thisFlushTask;
+
             lock (_flushLock)
             {
-                if (_flushTcs == null || _flushTcs.Task.IsCompleted)
-                {
-                    _flushTcs = new TaskCompletionSource<object>();
-
-                    awaitable.OnCompleted(_flushCompleted);
-                }
+                _lastFlushTask = thisFlushTask = SerializedFlushAsync(_lastFlushTask, awaitable, count);
             }
 
-            _timeoutControl.StartTimingWrite(count);
-            await _flushTcs.Task;
-            _timeoutControl.StopTimingWrite();
-
+            await thisFlushTask;
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        private void OnFlushCompleted()
+        private async Task SerializedFlushAsync(Task lastFlushTask, WritableBufferAwaitable awaitable, int count)
         {
-            _flushTcs.TrySetResult(null);
+            await lastFlushTask;
+
+            _timeoutControl.StartTimingWrite(count);
+            await awaitable;
+            _timeoutControl.StopTimingWrite();
         }
     }
 }

@@ -102,6 +102,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
         private static void OnWriterCompleted(Exception ex, object state)
         {
             // Cut off writes if the writer is completed with an error. If a write request is pending, this will cancel it.
+            // If ex is null, the reader has also already completed and the socket should be closed gracefully.
             if (ex != null)
             {
                 var libuvOutputConsumer = (LibuvOutputConsumer)state;
