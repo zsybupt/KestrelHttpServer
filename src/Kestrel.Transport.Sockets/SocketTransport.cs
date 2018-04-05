@@ -10,8 +10,8 @@ using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal;
 using Microsoft.Extensions.Logging;
@@ -106,6 +106,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
             listenSocket.Listen(512);
 
             _listenSocket = listenSocket;
+
+            Task.Run(async () =>
+            {
+                while (true)
+                {
+                    Console.WriteLine("########################## SyncReads: {0}, AsyncReads: {1}", SocketConnection.SyncReads, SocketConnection.AsyncReads);
+                    await Task.Delay(1000);
+                }
+            });
 
             _listenTask = Task.Run(() => RunAcceptLoopAsync());
 

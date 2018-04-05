@@ -9,6 +9,7 @@ using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
@@ -154,14 +155,27 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
             }
         }
 
+        public static int SyncReads;
+        public static int AsyncReads;
+
         private async Task ProcessReceives()
         {
             while (true)
             {
                 // Ensure we have some reasonable amount of buffer space
                 var buffer = Input.GetMemory(MinAllocBufferSize);
+                var a = _receiver.ReceiveAsync(buffer);
 
-                var bytesReceived = await _receiver.ReceiveAsync(buffer);
+                if (a.IsCompleted)
+                {
+                    Interlocked.Increment(ref SyncReads);
+                }
+                else
+                {
+                    Interlocked.Increment(ref AsyncReads);
+                }
+
+                var bytesReceived = await a;
 
                 if (bytesReceived == 0)
                 {
