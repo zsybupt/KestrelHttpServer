@@ -4,11 +4,8 @@
 using System;
 using System.Buffers;
 using System.IO.Pipelines;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
 using Microsoft.Extensions.Logging;
@@ -30,10 +27,19 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
 
         public void OnConnection(TransportConnection connection)
         {
+            var transportPreferredAppSchedulingMode = connection.Features.Get<SchedulingMode>();
+            var appScheduler = _serviceContext.Scheduler;
+
+            if (transportPreferredAppSchedulingMode == SchedulingMode.Inline &&
+                _serviceContext.ServerOptions.ApplicationSchedulingMode == SchedulingMode.Default)
+            {
+                appScheduler = PipeScheduler.Inline;
+            }
+
             // REVIEW: Unfortunately, we still need to use the service context to create the pipes since the settings
             // for the scheduler and limits are specified here
-            var inputOptions = GetInputPipeOptions(_serviceContext, connection.MemoryPool, connection.InputWriterScheduler);
-            var outputOptions = GetOutputPipeOptions(_serviceContext, connection.MemoryPool, connection.OutputReaderScheduler);
+            var inputOptions = GetInputPipeOptions(_serviceContext, connection.MemoryPool, connection.InputWriterScheduler, appScheduler);
+            var outputOptions = GetOutputPipeOptions(_serviceContext, connection.MemoryPool, connection.OutputReaderScheduler, appScheduler);
 
             var pair = DuplexPipe.CreateConnectionPair(inputOptions, outputOptions);
 
@@ -79,10 +85,10 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
         }
 
         // Internal for testing
-        internal static PipeOptions GetInputPipeOptions(ServiceContext serviceContext, MemoryPool<byte> memoryPool, PipeScheduler writerScheduler) => new PipeOptions
+        internal static PipeOptions GetInputPipeOptions(ServiceContext serviceContext, MemoryPool<byte> memoryPool, PipeScheduler writerScheduler, PipeScheduler appScheduler) => new PipeOptions
         (
             pool: memoryPool,
-            readerScheduler: serviceContext.Scheduler,
+            readerScheduler: appScheduler,
             writerScheduler: writerScheduler,
             pauseWriterThreshold: serviceContext.ServerOptions.Limits.MaxRequestBufferSize ?? 0,
             resumeWriterThreshold: serviceContext.ServerOptions.Limits.MaxRequestBufferSize ?? 0,
@@ -90,11 +96,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
             minimumSegmentSize: KestrelMemoryPool.MinimumSegmentSize
         );
 
-        internal static PipeOptions GetOutputPipeOptions(ServiceContext serviceContext, MemoryPool<byte> memoryPool, PipeScheduler readerScheduler) => new PipeOptions
+        internal static PipeOptions GetOutputPipeOptions(ServiceContext serviceContext, MemoryPool<byte> memoryPool, PipeScheduler readerScheduler, PipeScheduler appScheduler) => new PipeOptions
         (
             pool: memoryPool,
             readerScheduler: readerScheduler,
-            writerScheduler: serviceContext.Scheduler,
+            writerScheduler: appScheduler,
             pauseWriterThreshold: GetOutputResponseBufferSize(serviceContext),
             resumeWriterThreshold: GetOutputResponseBufferSize(serviceContext),
             useSynchronizationContext: false,

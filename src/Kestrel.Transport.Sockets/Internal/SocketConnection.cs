@@ -22,8 +22,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
         private static readonly bool IsWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
         private readonly Socket _socket;
-        private readonly PipeScheduler _scheduler;
         private readonly PipeSchedulerAwiatable _schedulerAwaitable;
+        private readonly PipeSchedulerAwiatable _threadPoolAwaitable;
         private readonly ISocketsTrace _trace;
         private readonly SocketReceiver _receiver;
         private readonly SocketSender _sender;
@@ -38,8 +38,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
 
             _socket = socket;
             MemoryPool = memoryPool;
-            _scheduler = scheduler;
             _schedulerAwaitable = new PipeSchedulerAwiatable(scheduler);
+            _threadPoolAwaitable = new PipeSchedulerAwiatable(PipeScheduler.ThreadPool);
             _trace = trace;
 
             var localEndPoint = (IPEndPoint)_socket.LocalEndPoint;
@@ -51,15 +51,14 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
             RemoteAddress = remoteEndPoint.Address;
             RemotePort = remoteEndPoint.Port;
 
-            // On *nix platforms, Sockets already dispatches to the ThreadPool.
-            var awaiterScheduler = IsWindows ? _scheduler : PipeScheduler.Inline;
+            _receiver = new SocketReceiver(_socket, PipeScheduler.Inline);
+            _sender = new SocketSender(_socket, PipeScheduler.Inline);
 
-            _receiver = new SocketReceiver(_socket, awaiterScheduler);
-            _sender = new SocketSender(_socket, awaiterScheduler);
+            Features.Set(SchedulingMode.Inline);
         }
 
         public override MemoryPool<byte> MemoryPool { get; }
-        public override PipeScheduler InputWriterScheduler => _scheduler;
+        public override PipeScheduler InputWriterScheduler => PipeScheduler.Inline;
         public override PipeScheduler OutputReaderScheduler => PipeScheduler.Inline;
 
         public async Task StartAsync(IConnectionDispatcher connectionDispatcher)
@@ -163,7 +162,18 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                 // Ensure we have some reasonable amount of buffer space
                 var buffer = Input.GetMemory(MinAllocBufferSize);
 
-                var bytesReceived = await _receiver.ReceiveAsync(buffer);
+                bool shouldDispatchPostReceive = false;
+
+                var socketAwaitable = _receiver.ReceiveAsync(buffer);
+
+                if (IsWindows && !socketAwaitable.IsCompleted)
+                {
+                    // Since we're on Windows and the Receive hasn't completed yet,
+                    // expect that we will continue on an IO thread.
+                    shouldDispatchPostReceive = true;
+                }
+
+                var bytesReceived = await socketAwaitable;
 
                 if (bytesReceived == 0)
                 {
@@ -171,6 +181,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                     _trace.ConnectionReadFin(ConnectionId);
                     break;
                 }
+
+                if (shouldDispatchPostReceive)
+                {
+                    await _threadPoolAwaitable;
+                    //await _schedulerAwaitable;
+                }
+
 
                 Input.Advance(bytesReceived);
 
@@ -192,7 +209,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                     break;
                 }
 
-                await _schedulerAwaitable;
+                await _threadPoolAwaitable;
+                //await _schedulerAwaitable;
             }
         }
 
