@@ -23,6 +23,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
 
         private readonly Socket _socket;
         private readonly PipeScheduler _scheduler;
+        private readonly PipeSchedulerAwiatable _schedulerAwaitable;
         private readonly ISocketsTrace _trace;
         private readonly SocketReceiver _receiver;
         private readonly SocketSender _sender;
@@ -38,6 +39,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
             _socket = socket;
             MemoryPool = memoryPool;
             _scheduler = scheduler;
+            _schedulerAwaitable = new PipeSchedulerAwiatable(scheduler);
             _trace = trace;
 
             var localEndPoint = (IPEndPoint)_socket.LocalEndPoint;
@@ -58,7 +60,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
 
         public override MemoryPool<byte> MemoryPool { get; }
         public override PipeScheduler InputWriterScheduler => _scheduler;
-        public override PipeScheduler OutputReaderScheduler => _scheduler;
+        public override PipeScheduler OutputReaderScheduler => PipeScheduler.Inline;
 
         public async Task StartAsync(IConnectionDispatcher connectionDispatcher)
         {
@@ -189,6 +191,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                     // Pipe consumer is shut down, do we stop writing
                     break;
                 }
+
+                await _schedulerAwaitable;
             }
         }
 
