@@ -104,9 +104,10 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
 
         private void LogWriteInfo(int status, Exception error)
         {
+            _log.ConnectionWriteCallback(_connectionId, status);
+
             if (error == null)
             {
-                _log.ConnectionWriteCallback(_connectionId, status);
             }
             else
             {

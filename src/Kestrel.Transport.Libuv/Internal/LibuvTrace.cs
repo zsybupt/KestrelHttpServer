@@ -9,6 +9,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
     public class LibuvTrace : ILibuvTrace
     {
         // ConnectionRead: Reserved: 3
+        private static readonly Action<ILogger, string, int, Exception> _connectionRead =
+            LoggerMessage.Define<string, int>(LogLevel.Debug, new EventId(3, nameof(ConnectionRead)), @"Connection id ""{ConnectionId}"" completed read with status ""{Status}"".");
+
+        private static readonly Action<ILogger, string, int, Exception> _connectionWrite =
+            LoggerMessage.Define<string, int>(LogLevel.Debug, new EventId(11, nameof(ConnectionWrite)), @"Connection id ""{ConnectionId}"" completed write with status ""{Status}"".");
 
         private static readonly Action<ILogger, string, Exception> _connectionPause =
             LoggerMessage.Define<string>(LogLevel.Debug, new EventId(4, nameof(ConnectionPause)), @"Connection id ""{ConnectionId}"" paused.");
@@ -44,6 +49,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
 
         public void ConnectionRead(string connectionId, int count)
         {
+            _connectionRead(_logger, connectionId, count, null);
             // Don't log for now since this could be *too* verbose.
             // Reserved: Event ID 3
         }
@@ -67,6 +73,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
         {
             // Don't log for now since this could be *too* verbose.
             // Reserved: Event ID 11
+            _connectionWrite(_logger, connectionId, count, null);
         }
 
         public void ConnectionWriteCallback(string connectionId, int status)

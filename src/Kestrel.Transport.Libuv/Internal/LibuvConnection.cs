@@ -152,6 +152,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
 
         private void OnRead(UvStreamHandle handle, int status)
         {
+            Log.ConnectionRead(ConnectionId, status);
+
             // Cleanup state from last OnAlloc. This is safe even if OnAlloc wasn't called.
             _bufferHandle.Dispose();
             if (status == 0)
@@ -161,8 +163,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
             }
             else if (status > 0)
             {
-                Log.ConnectionRead(ConnectionId, status);
-
                 Input.Advance(status);
                 var flushTask = Input.FlushAsync();
 
