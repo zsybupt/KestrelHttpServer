@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Connections;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 {
-    public interface IHttpOutputProducer : IDisposable
+    public interface IHttpOutputProducer
     {
         void Abort(ConnectionAbortedException abortReason);
         Task WriteAsync<T>(Func<PipeWriter, T, long> callback, T state, CancellationToken cancellationToken);

@@ -23,6 +23,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         private readonly Http1ConnectionContext _context;
         private readonly IHttpParser<Http1ParsingHandler> _parser;
+        private readonly Http1OutputProducer _http1Output;
         protected readonly long _keepAliveTicks;
         private readonly long _requestHeadersTimeoutTicks;
 
@@ -44,13 +45,15 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             _requestHeadersTimeoutTicks = ServerOptions.Limits.RequestHeadersTimeout.Ticks;
 
             RequestBodyPipe = CreateRequestBodyPipe();
-            Output = new Http1OutputProducer(
+
+            _http1Output = new Http1OutputProducer(
                 _context.Transport.Output,
                 _context.ConnectionId,
                 _context.ConnectionContext,
                 _context.ServiceContext.Log,
                 _context.TimeoutControl,
                 _context.ConnectionFeatures.Get<IBytesWrittenFeature>());
+            Output = _http1Output;
         }
 
         public PipeReader Input => _context.Transport.Input;
@@ -59,6 +62,25 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         public bool RequestTimedOut => _requestTimedOut;
 
         public override bool IsUpgradableRequest => _upgradeAvailable;
+
+        protected override void OnRequestProcessingEnded()
+        {
+            Input.Complete();
+
+            var lastMinResponseDataRate = MinResponseDataRate;
+
+            // Prevent RequestAborted from firing.
+            Reset();
+
+            // TODO: pass through lastMinResponseDataRate to configure timeout correctly.
+            _http1Output.Dispose();
+        }
+
+        public void OnInputOrOutputCompleted()
+        {
+            _http1Output.Abort(new ConnectionAbortedException("The client closed the connection."));
+            AbortRequest();
+        }
 
         /// <summary>
         /// Immediately kill the connection and poison the request body stream with an error.
@@ -70,11 +92,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 return;
             }
 
-            // Abort output prior to calling OnIOCompleted() to give the transport the chance to complete the input
-            // with the correct error and message. 
-            Output.Abort(abortReason);
+            _http1Output.Abort(abortReason);
 
-            OnInputOrOutputCompleted();
+            AbortRequest();
 
             PoisonRequestBodyStream(abortReason);
         }
@@ -411,7 +431,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         protected override void OnRequestProcessingEnding()
         {
-            Input.Complete();
         }
 
         protected override string CreateRequestId()

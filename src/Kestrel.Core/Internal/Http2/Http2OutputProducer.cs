@@ -173,9 +173,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
 
                 _completed = true;
 
-                // Even if there's no actual data, completing the writer gracefully sends an END_STREAM DATA frame.
-                _startedWritingDataFrames = true;
-
                 _dataPipe.Writer.Complete();
                 return _dataWriteProcessingTask;
             }
