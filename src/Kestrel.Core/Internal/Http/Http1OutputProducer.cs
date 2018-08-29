@@ -24,7 +24,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         private readonly ConnectionContext _connectionContext;
         private readonly ITimeoutControl _timeoutControl;
         private readonly IKestrelTrace _log;
-        private readonly IBytesWrittenFeature _transportBytesWrittenFeature;
+        private readonly long? _maxResponseBufferSize;
         private readonly StreamSafePipeFlusher _flusher;
 
         // This locks access to to all of the below fields
@@ -33,23 +33,23 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         private bool _completed = false;
         private bool _aborted;
         private long _unflushedBytes;
-        private long _totalBytesCommitted;
 
         private readonly PipeWriter _pipeWriter;
+
         public Http1OutputProducer(
             PipeWriter pipeWriter,
             string connectionId,
             ConnectionContext connectionContext,
             IKestrelTrace log,
             ITimeoutControl timeoutControl,
-            IBytesWrittenFeature transportBytesWrittenFeature)
+            long? maxResponseBufferSize)
         {
             _pipeWriter = pipeWriter;
             _connectionId = connectionId;
             _connectionContext = connectionContext;
             _timeoutControl = timeoutControl;
             _log = log;
-            _transportBytesWrittenFeature = transportBytesWrittenFeature;
+            _maxResponseBufferSize = maxResponseBufferSize;
             _flusher = new StreamSafePipeFlusher(pipeWriter, timeoutControl);
         }
 
@@ -85,7 +85,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 var buffer = _pipeWriter;
                 var bytesCommitted = callback(buffer, state);
                 _unflushedBytes += bytesCommitted;
-                _totalBytesCommitted += bytesCommitted;
             }
 
             return FlushAsync(cancellationToken);
@@ -112,7 +111,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 writer.Commit();
 
                 _unflushedBytes += writer.BytesCommitted;
-                _totalBytesCommitted += writer.BytesCommitted;
             }
         }
 
@@ -129,13 +127,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 _completed = true;
                 _pipeWriter.Complete();
 
-                var unsentBytes = _totalBytesCommitted - _transportBytesWrittenFeature.TotalBytesWritten;
-
-                if (unsentBytes > 0)
+                // If _maxResponseBufferSize has no value, there's no backpressure and we can't reasonably timeout draining.
+                if (_maxResponseBufferSize.HasValue)
                 {
-                    // unsentBytes should never be over 64KB in the default configuration.
-                    _timeoutControl.StartTimingWrite((int)Math.Min(unsentBytes, int.MaxValue));
-                    _pipeWriter.OnReaderCompleted((ex, state) => ((ITimeoutControl)state).StopTimingWrite(), _timeoutControl);
+                    // With full backpressure there are 2 two pipes buffering. We already validate that the buffer size is positive.
+                    var oneBufferSize = _maxResponseBufferSize.Value;
+                    var maxBufferedBytes = oneBufferSize < long.MaxValue / 2 ? oneBufferSize * 2 : long.MaxValue;
+                    _timeoutControl.StartTimingWrite(maxBufferedBytes);
                 }
             }
         }
@@ -186,7 +184,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                     writer.Write(buffer);
 
                     _unflushedBytes += buffer.Length;
-                    _totalBytesCommitted += buffer.Length;
                 }
                 writer.Commit();
 

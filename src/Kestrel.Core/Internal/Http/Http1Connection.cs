@@ -52,7 +52,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 _context.ConnectionContext,
                 _context.ServiceContext.Log,
                 _context.TimeoutControl,
-                _context.ConnectionFeatures.Get<IBytesWrittenFeature>());
+                _context.ServiceContext.ServerOptions.Limits.MaxResponseBufferSize);
+
             Output = _http1Output;
         }
 
@@ -69,10 +70,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
             var lastMinResponseDataRate = MinResponseDataRate;
 
-            // Prevent RequestAborted from firing.
+            // Prevent RequestAborted from firing. Free up unneeded feature references.
             Reset();
 
-            // TODO: pass through lastMinResponseDataRate to configure timeout correctly.
+            // Enforce the last configured response body data rate for draining the output pipe.
+            MinResponseDataRate = lastMinResponseDataRate;
+
             _http1Output.Dispose();
         }
 

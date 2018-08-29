@@ -21,8 +21,6 @@ using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 
-// ReSharper disable AccessToModifiedClosure
-
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 {
     public abstract partial class HttpProtocol : IHttpResponseControl
