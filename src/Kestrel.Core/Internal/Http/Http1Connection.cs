@@ -51,8 +51,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 _context.ConnectionId,
                 _context.ConnectionContext,
                 _context.ServiceContext.Log,
-                _context.TimeoutControl,
-                _context.ServiceContext.ServerOptions.Limits.MaxResponseBufferSize);
+                _context.TimeoutControl);
 
             Output = _http1Output;
         }
@@ -73,10 +72,22 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             // Prevent RequestAborted from firing. Free up unneeded feature references.
             Reset();
 
-            // Enforce the last configured response body data rate for draining the output pipe.
+            _http1Output.Dispose();
+
+            // Ensure TimeoutControl.StartTimingWrite enforces the last configured response body data rate for draining
+            // the output pipe.
             MinResponseDataRate = lastMinResponseDataRate;
 
-            _http1Output.Dispose();
+            // Start the drain timeout.
+            // If _maxResponseBufferSize has no value, there's no backpressure and we can't reasonably timeout draining.
+            if (ServerOptions.Limits.MaxResponseBufferSize.HasValue)
+            {
+                // With full backpressure and a connection adapter there could be 2 two pipes buffering.
+                // We already validate that the buffer size is positive.
+                var oneBufferSize = ServerOptions.Limits.MaxResponseBufferSize.Value;
+                var maxBufferedBytes = oneBufferSize < long.MaxValue / 2 ? oneBufferSize * 2 : long.MaxValue;
+                TimeoutControl.StartTimingWrite(maxBufferedBytes);
+            }
         }
 
         public void OnInputOrOutputCompleted()

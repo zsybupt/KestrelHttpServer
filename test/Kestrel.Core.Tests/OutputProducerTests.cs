@@ -93,8 +93,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Tests
                 "0",
                 connectionContext,
                 serviceContext.Log,
-                Mock.Of<ITimeoutControl>(),
-                null);
+                Mock.Of<ITimeoutControl>());
 
             return socketOutput;
         }

@@ -21,9 +21,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         private readonly string _connectionId;
         private readonly ConnectionContext _connectionContext;
-        private readonly ITimeoutControl _timeoutControl;
         private readonly IKestrelTrace _log;
-        private readonly long? _maxResponseBufferSize;
         private readonly StreamSafePipeFlusher _flusher;
 
         // This locks access to to all of the below fields
@@ -40,15 +38,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             string connectionId,
             ConnectionContext connectionContext,
             IKestrelTrace log,
-            ITimeoutControl timeoutControl,
-            long? maxResponseBufferSize)
+            ITimeoutControl timeoutControl)
         {
             _pipeWriter = pipeWriter;
             _connectionId = connectionId;
             _connectionContext = connectionContext;
-            _timeoutControl = timeoutControl;
             _log = log;
-            _maxResponseBufferSize = maxResponseBufferSize;
             _flusher = new StreamSafePipeFlusher(pipeWriter, timeoutControl);
         }
 
@@ -125,15 +120,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 _log.ConnectionDisconnect(_connectionId);
                 _completed = true;
                 _pipeWriter.Complete();
-
-                // If _maxResponseBufferSize has no value, there's no backpressure and we can't reasonably timeout draining.
-                if (_maxResponseBufferSize.HasValue)
-                {
-                    // With full backpressure there are 2 two pipes buffering. We already validate that the buffer size is positive.
-                    var oneBufferSize = _maxResponseBufferSize.Value;
-                    var maxBufferedBytes = oneBufferSize < long.MaxValue / 2 ? oneBufferSize * 2 : long.MaxValue;
-                    _timeoutControl.StartTimingWrite(maxBufferedBytes);
-                }
             }
         }
 
@@ -151,13 +137,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
                 _aborted = true;
                 _connectionContext.Abort(error);
-
-                if (!_completed)
-                {
-                    _log.ConnectionDisconnect(_connectionId);
-                    _completed = true;
-                    _pipeWriter.Complete();
-                }
+                Dispose();
             }
         }
 
