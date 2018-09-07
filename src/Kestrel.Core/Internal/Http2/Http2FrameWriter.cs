@@ -157,6 +157,48 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2
             }
         }
 
+        public Task WriteResponseTrailers(int streamId, IHeaderDictionary headers)
+        {
+            lock (_writeLock)
+            {
+                if (_completed)
+                {
+                    return Task.CompletedTask;
+                }
+
+                _outgoingFrame.PrepareHeaders(Http2HeadersFrameFlags.END_STREAM, streamId);
+
+                var done = _hpackEncoder.BeginEncode(EnumerateHeaders(headers), _outgoingFrame.Payload, out var payloadLength);
+                _outgoingFrame.PayloadLength = payloadLength;
+
+                if (done)
+                {
+                    _outgoingFrame.HeadersFlags |= Http2HeadersFrameFlags.END_HEADERS;
+                }
+
+                _log.Http2FrameSending(_connectionId, _outgoingFrame);
+                _outputWriter.Write(_outgoingFrame.Raw);
+
+                while (!done)
+                {
+                    _outgoingFrame.PrepareContinuation(Http2ContinuationFrameFlags.NONE, streamId);
+
+                    done = _hpackEncoder.Encode(_outgoingFrame.Payload, out var length);
+                    _outgoingFrame.PayloadLength = length;
+
+                    if (done)
+                    {
+                        _outgoingFrame.ContinuationFlags = Http2ContinuationFrameFlags.END_HEADERS;
+                    }
+
+                    _log.Http2FrameSending(_connectionId, _outgoingFrame);
+                    _outputWriter.Write(_outgoingFrame.Raw);
+                }
+
+                return _flusher.FlushAsync();
+            }
+        }
+
         public Task WriteDataAsync(int streamId, StreamOutputFlowControl flowControl, ReadOnlySequence<byte> data, bool endStream)
         {
             // The Length property of a ReadOnlySequence can be expensive, so we cache the value.
