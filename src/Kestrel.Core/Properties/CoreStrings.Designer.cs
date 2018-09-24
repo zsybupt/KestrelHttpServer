@@ -2170,6 +2170,20 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core
         internal static string FormatHPackErrorNotEnoughBuffer()
             => GetString("HPackErrorNotEnoughBuffer");
 
+        /// <summary>
+        /// The client closed the connection.
+        /// </summary>
+        internal static string ConnectionAbortedByClient
+        {
+            get => GetString("ConnectionAbortedByClient");
+        }
+
+        /// <summary>
+        /// The client closed the connection.
+        /// </summary>
+        internal static string FormatConnectionAbortedByClient()
+            => GetString("ConnectionAbortedByClient");
+
         private static string GetString(string name, params string[] formatterNames)
         {
             var value = _resourceManager.GetString(name);
