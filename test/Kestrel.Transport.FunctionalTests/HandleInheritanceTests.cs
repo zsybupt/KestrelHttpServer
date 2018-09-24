@@ -47,11 +47,18 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                     var port = host.GetPort();
                     await host.StopAsync();
 
-                    // We should not be able to connect if the handle was correctly closed and not inherited by the child process.
-                    using (var client = new TcpClient())
+                    await Assert.ThrowsAnyAsync<SocketException>(async () =>
                     {
-                        await Assert.ThrowsAnyAsync<SocketException>(() => client.ConnectAsync("127.0.0.1", port));
-                    }
+                        // Mac sockets are flaky
+                        for (var i = 0; i < 5; i++)
+                        {
+                            // We should not be able to connect if the handle was correctly closed and not inherited by the child process.
+                            using (var client = new TcpClient())
+                            {
+                                await client.ConnectAsync("127.0.0.1", port).DefaultTimeout();
+                            }
+                        }
+                    });
 
                     process.Kill();
                 }
