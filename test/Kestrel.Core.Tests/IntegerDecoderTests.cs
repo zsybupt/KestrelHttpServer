@@ -71,8 +71,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Tests
             {
                 var data = new TheoryData<int, byte[]>();
 
-                data.Add(1, new byte[] { 0x01, 0xff, 0xff, 0xff, 0xff, 0x07 });
-                data.Add(8, new byte[] { 0xff, 0x81, 0xfe, 0xff, 0xff, 0x07 });
+                data.Add(1, new byte[] { 0x01, 0xff, 0xff, 0xff, 0xff, 0x07 }); // Int32.MaxValue + 1
+                data.Add(1, new byte[] { 0x01, 0xff, 0xff, 0xff, 0xff, 0x08 }); // MSB exceeds maximum
+                data.Add(1, new byte[] { 0x01, 0xff, 0xff, 0xff, 0xff, 0x80 }); // Undefined since continuation bit set
+                data.Add(8, new byte[] { 0xff, 0x81, 0xfe, 0xff, 0xff, 0x07 }); // Int32.MaxValue + 1
+                data.Add(8, new byte[] { 0xff, 0x81, 0xfe, 0xff, 0xff, 0x08 }); // MSB exceeds maximum
+                data.Add(8, new byte[] { 0xff, 0x81, 0xfe, 0xff, 0xff, 0x80 }); // Undefined since continuation bit set
 
                 return data;
             }
