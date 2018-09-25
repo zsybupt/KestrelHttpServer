@@ -8,7 +8,6 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Connections.Features;
@@ -121,7 +120,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal
                 using (connectionLifetimeNotificationFeature?.ConnectionClosedRequested.Register(state => ((HttpConnection)state).StopProcessingNextRequest(), this))
                 {
                     // Ensure TimeoutControl._lastTimestamp is intialized before anything that could set timeouts runs.
-                    Tick();
+                    _timeoutControl.Initialize(_systemClock.UtcNow);
 
                     _context.ConnectionFeatures.Set<IConnectionTimeoutFeature>(_timeoutControl);
 

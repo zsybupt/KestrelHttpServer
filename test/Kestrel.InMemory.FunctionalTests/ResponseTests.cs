@@ -114,10 +114,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 try
                 {
                     await context.Response.WriteAsync("hello", cts.Token).DefaultTimeout();
+
+                    var task = context.Response.WriteAsync("world!", cts.Token);
+                    Assert.False(task.IsCompleted);
+
                     writeReturnedTcs.TrySetResult(null);
 
-                    var task = context.Response.WriteAsync("world", cts.Token);
-                    Assert.False(task.IsCompleted);
                     await task.DefaultTimeout();
                 }
                 catch (Exception ex)
@@ -2396,6 +2398,57 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                         "Content-Length: 42",
                         "",
                         "");
+                }
+            }
+        }
+
+        [Fact]
+        public async Task ConnectionClosedWhenResponseNotDrainedAtMinimumDataRate()
+        {
+            var testContext = new TestServiceContext(LoggerFactory);
+            var minRate = testContext.ServerOptions.Limits.MinResponseDataRate;
+            var heartbeatManager = new HeartbeatManager(testContext.ConnectionManager);
+
+            using (var server = new TestServer(context =>
+            {
+                context.Response.ContentLength = 11;
+
+                return context.Response.WriteAsync("Hello World");
+            }, testContext))
+            {
+                using (var connection = server.CreateConnection())
+                {
+                    await connection.Send(
+                        "GET / HTTP/1.1",
+                        "Host:",
+                        "Connection: close",
+                        "",
+                        "");
+
+                    // Read all but the last byte of the response.
+                    await connection.Receive(
+                        "HTTP/1.1 200 OK",
+                        "Connection: close",
+                        $"Date: {testContext.DateHeaderValue}",
+                        "Content-Length: 11",
+                        "",
+                        "Hello Worl");
+
+                    await Task.Delay(1000);
+
+                    heartbeatManager.OnHeartbeat(testContext.SystemClock.UtcNow);
+
+                    Assert.Null(connection.AbortReason);
+
+                    testContext.MockSystemClock.UtcNow +=
+                        Heartbeat.Interval +
+                        TimeSpan.FromSeconds(testContext.ServerOptions.Limits.MaxResponseBufferSize.Value * 2 / minRate.BytesPerSecond) +
+                        TimeSpan.FromTicks(1);
+
+                    heartbeatManager.OnHeartbeat(testContext.SystemClock.UtcNow);
+
+                    Assert.NotNull(connection.AbortReason);
+                    Assert.Equal(CoreStrings.ConnectionTimedBecauseResponseMininumDataRateNotSatisfied, connection.AbortReason.Message);
                 }
             }
         }

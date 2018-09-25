@@ -17,6 +17,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests.TestTrans
             _transportConnection = transportConnection;
         }
 
+        public ConnectionAbortedException AbortReason => _transportConnection.AbortReason;
+
         public override void Reset()
         {
             _transportConnection.Input.Complete(new ConnectionResetException(string.Empty));

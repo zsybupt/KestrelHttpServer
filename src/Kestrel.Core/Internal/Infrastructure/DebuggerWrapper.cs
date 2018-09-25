@@ -12,6 +12,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure
 
         public static IDebugger Singleton { get; } = new DebuggerWrapper();
 
-        public bool IsAttached => Debugger.IsAttached;
+        //public bool IsAttached => Debugger.IsAttached;
+        public bool IsAttached => false;
     }
 }
